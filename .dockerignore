@@ -1,0 +1,8 @@
+**/node_modules
+**/.next
+**/dist
+.git
+.env
+*.log
+.vscode
+.DS_Store

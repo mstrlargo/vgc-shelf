@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>VGC-Shelf</Name>
+  <Repository>mstrlargo/vgc-shelf:latest</Repository>
+  <Registry>https://hub.docker.com/r/mstrlargo/vgc-shelf</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/YOUR_USERNAME/vgc-shelf/issues</Support>
+  <Project>https://github.com/YOUR_USERNAME/vgc-shelf</Project>
+  <Overview>Self-hosted video game collection manager. Tracks collections, asset tags, lending, wishlist, sell list, metadata, and values. Requires PostgreSQL. For most Unraid users, Docker Compose Manager with docker-compose.unraid.yml is recommended.</Overview>
+  <Category>MediaApp:Other Productivity: Tools:</Category>
+  <WebUI>http://[IP]:[PORT:3000]</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/YOUR_USERNAME/vgc-shelf/main/unraid/vgc-shelf.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/YOUR_USERNAME/vgc-shelf/main/frontend/public/vgcs-icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>PostgreSQL database. Recommended deployment: Docker Compose Manager using docker-compose.unraid.yml.</Requires>
+  <Config Name="Frontend Port" Target="3000" Default="3000" Mode="tcp" Description="Web UI port" Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+  <Config Name="Backend API Port" Target="4000" Default="4000" Mode="tcp" Description="Backend API port" Type="Port" Display="advanced" Required="true" Mask="false">4000</Config>
+  <Config Name="Uploads" Target="/app/uploads" Default="/mnt/user/appdata/vgc-shelf/uploads" Mode="rw" Description="Persistent uploaded images and media" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/vgc-shelf/uploads</Config>
+  <Config Name="DATABASE_URL" Target="DATABASE_URL" Default="postgresql://vgc:replace-with-a-strong-password@POSTGRES_HOST:5432/vgcshelf?schema=public" Description="PostgreSQL connection string" Type="Variable" Display="always" Required="true" Mask="true">postgresql://vgc:replace-with-a-strong-password@POSTGRES_HOST:5432/vgcshelf?schema=public</Config>
+  <Config Name="JWT_SECRET" Target="JWT_SECRET" Default="replace-with-a-long-random-secret" Description="Long random secret used for authentication tokens" Type="Variable" Display="always" Required="true" Mask="true">replace-with-a-long-random-secret</Config>
+  <Config Name="CORS_ORIGIN" Target="CORS_ORIGIN" Default="http://YOUR_UNRAID_IP:3000" Description="Frontend URL allowed to access the API" Type="Variable" Display="advanced" Required="true" Mask="false">http://YOUR_UNRAID_IP:3000</Config>
+  <Config Name="NEXT_PUBLIC_API_URL" Target="NEXT_PUBLIC_API_URL" Default="/api" Description="Frontend API path" Type="Variable" Display="advanced" Required="true" Mask="false">/api</Config>
+  <Config Name="BACKEND_INTERNAL_URL" Target="BACKEND_INTERNAL_URL" Default="http://127.0.0.1:4000" Description="Internal backend URL used by Next.js rewrites" Type="Variable" Display="advanced" Required="true" Mask="false">http://127.0.0.1:4000</Config>
+  <Config Name="UPLOAD_DIR" Target="UPLOAD_DIR" Default="/app/uploads" Description="Upload directory inside the container" Type="Variable" Display="advanced" Required="true" Mask="false">/app/uploads</Config>
+  <Config Name="PUBLIC_UPLOAD_BASE_URL" Target="PUBLIC_UPLOAD_BASE_URL" Default="/uploads" Description="Public upload base URL" Type="Variable" Display="advanced" Required="true" Mask="false">/uploads</Config>
+</Container>
