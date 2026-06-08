@@ -1,0 +1,293 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum CollectionRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+enum CollectionType {
+  GAMES
+  SYSTEMS
+  PERIPHERALS
+  TOYS_TO_LIFE
+}
+
+enum GameCopyFormat {
+  PHYSICAL
+  DIGITAL
+}
+
+enum GamePartType {
+  DISC
+  CARTRIDGE
+  CASE
+  BOX
+  MANUAL
+  INSERT
+  COVER_ART
+  STEELBOOK
+  AMIIBO
+  OTHER
+}
+
+enum ConditionGrade {
+  NEW
+  LIKE_NEW
+  VERY_GOOD
+  GOOD
+  ACCEPTABLE
+  POOR
+  MISSING
+}
+
+enum CollectionItemCategory {
+  SYSTEM
+  PERIPHERAL
+  TOYS_TO_LIFE
+  OTHER
+}
+
+enum LoanStatus {
+  CHECKED_OUT
+  RETURNED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  role         UserRole @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships CollectionMember[]
+  loansCreated Loan[]
+  wishlistItems WishlistItem[]
+  sellListItems SellListItem[]
+}
+
+model AppSetting {
+  id                   String   @id @default("global")
+  allowPublicSignup    Boolean  @default(true)
+  appName              String   @default("VGC Shelf")
+  pageTitle            String   @default("VGC Shelf")
+  appIconUrl           String?
+  assetTagPrefix       String   @default("VGC")
+  igdbClientId         String?
+  igdbClientSecret     String?
+  twitchAccessToken    String?
+  priceChartingApiKey  String?
+  rawgApiKey           String?
+  giantBombApiKey      String?
+  mobyGamesApiKey      String?
+  steamWebApiKey       String?
+  customMetadataApiUrl String?
+  customMetadataApiKey String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model Collection {
+  id          String         @id @default(cuid())
+  name        String
+  description String?
+  type        CollectionType @default(GAMES)
+  imageUrl    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members CollectionMember[]
+  copies  GameCopy[]
+  items   CollectionItem[]
+}
+
+model CollectionMember {
+  id           String         @id @default(cuid())
+  userId       String
+  collectionId String
+  role         CollectionRole @default(VIEWER)
+  createdAt DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, collectionId])
+}
+
+model Platform {
+  id    String @id @default(cuid())
+  name  String @unique
+  maker String?
+  createdAt DateTime @default(now())
+  games Game[]
+}
+
+model Game {
+  id          String @id @default(cuid())
+  title       String
+  description String?
+  releaseYear Int?
+  coverUrl    String?
+  platformId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  platform Platform? @relation(fields: [platformId], references: [id], onDelete: SetNull)
+  copies GameCopy[]
+
+  @@index([title])
+}
+
+model GameCopy {
+  id             String         @id @default(cuid())
+  collectionId   String
+  gameId         String
+  format         GameCopyFormat @default(PHYSICAL)
+  barcode        String?
+  region         String?
+  edition        String?
+  purchaseDate   DateTime?
+  purchasePrice  Decimal? @db.Decimal(10, 2)
+  estimatedValue Decimal? @db.Decimal(10, 2)
+  notes String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  game       Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  parts GamePart[]
+  assetTag AssetTag?
+
+  @@index([barcode])
+}
+
+model GamePart {
+  id     String @id @default(cuid())
+  copyId String
+  type      GamePartType
+  condition ConditionGrade @default(GOOD)
+  notes String?
+  createdAt DateTime @default(now())
+
+  copy GameCopy @relation(fields: [copyId], references: [id], onDelete: Cascade)
+}
+
+model CollectionItem {
+  id           String                 @id @default(cuid())
+  collectionId String
+  category     CollectionItemCategory
+  name         String
+  maker        String?
+  platform     String?
+  modelNumber  String?
+  serialNumber String?
+  barcode      String?
+  condition    ConditionGrade         @default(GOOD)
+  purchasePrice Decimal? @db.Decimal(10, 2)
+  estimatedValue Decimal? @db.Decimal(10, 2)
+  imageUrl     String?
+  notes        String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  assetTag AssetTag?
+
+  @@index([collectionId])
+  @@index([barcode])
+}
+
+model AssetTag {
+  id               String @id @default(cuid())
+  tag              String @unique
+  gameCopyId       String? @unique
+  collectionItemId String? @unique
+  notes            String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  gameCopy       GameCopy?       @relation(fields: [gameCopyId], references: [id], onDelete: Cascade)
+  collectionItem CollectionItem? @relation(fields: [collectionItemId], references: [id], onDelete: Cascade)
+  loans          Loan[]
+}
+
+model Loan {
+  id                 String     @id @default(cuid())
+  assetTagId         String
+  checkedOutByUserId String
+  borrowerName       String
+  borrowerEmail      String?
+  checkedOutAt       DateTime   @default(now())
+  dueAt              DateTime?
+  returnedAt         DateTime?
+  status             LoanStatus @default(CHECKED_OUT)
+  checkoutNotes      String?
+  returnNotes        String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assetTag AssetTag @relation(fields: [assetTagId], references: [id], onDelete: Cascade)
+  checkedOutBy User @relation(fields: [checkedOutByUserId], references: [id], onDelete: Restrict)
+
+  @@index([assetTagId])
+  @@index([status])
+}
+
+
+model WishlistItem {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  platform    String?
+  category    String   @default("GAME")
+  priority    String   @default("MEDIUM")
+  targetPrice Decimal? @db.Decimal(10, 2)
+  notes       String?
+  imageUrl    String?
+  barcode     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([barcode])
+}
+
+model SellListItem {
+  id             String   @id @default(cuid())
+  userId         String
+  sourceType     String   @default("MANUAL")
+  sourceId       String?
+  title          String
+  platform       String?
+  category       String   @default("GAME")
+  askingPrice    Decimal? @db.Decimal(10, 2)
+  currentValue   Decimal? @db.Decimal(10, 2)
+  status         String   @default("AVAILABLE")
+  notes          String?
+  imageUrl       String?
+  assetTag       String?
+  collectionName String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([sourceId])
+}

@@ -1,0 +1,9 @@
+import { Router } from "express"; import { z } from "zod"; import { prisma } from "../db.js"; import { requireAuth } from "../auth.js"; import { getCachedJson,setCachedJson,deleteCachePattern } from "../cache.js";
+const router=Router();
+const gameSchema=z.object({title:z.string().min(1),description:z.string().optional(),releaseYear:z.number().int().min(1950).max(2100).optional(),coverUrl:z.string().url().optional(),platformId:z.string().optional()});
+router.get("/", requireAuth, async (req,res,next)=>{ try{ const q=String(req.query.q||""); const cacheKey=`games:${q}`; const cached=await getCachedJson(cacheKey); if(cached) return res.json(cached); const games=await prisma.game.findMany({where:q?{title:{contains:q,mode:"insensitive"}}:{},include:{platform:true},orderBy:{title:"asc"},take:100}); const payload={games}; await setCachedJson(cacheKey,payload,60); res.json(payload); }catch(err){next(err);} });
+router.post("/", requireAuth, async (req,res,next)=>{ try{ const body=gameSchema.parse(req.body); const game=await prisma.game.create({data:body,include:{platform:true}}); await deleteCachePattern("games:*"); res.status(201).json({game}); }catch(err){next(err);} });
+router.get("/:id", requireAuth, async (req,res,next)=>{ try{ const game=await prisma.game.findUnique({where:{id:req.params.id},include:{platform:true}}); if(!game) return res.status(404).json({error:"Game not found"}); res.json({game}); }catch(err){next(err);} });
+router.patch("/:id", requireAuth, async (req,res,next)=>{ try{ const body=gameSchema.partial().parse(req.body); const game=await prisma.game.update({where:{id:req.params.id},data:body,include:{platform:true}}); await deleteCachePattern("games:*"); res.json({game}); }catch(err){next(err);} });
+router.delete("/:id", requireAuth, async (req,res,next)=>{ try{ await prisma.game.delete({where:{id:req.params.id}}); await deleteCachePattern("games:*"); res.status(204).send(); }catch(err){next(err);} });
+export default router;

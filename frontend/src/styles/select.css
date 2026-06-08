@@ -1,0 +1,19 @@
+.vgc-select {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid rgb(212 212 216);
+  background: white;
+  color: rgb(9 9 11);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.vgc-select:focus {
+  box-shadow: 0 0 0 2px rgb(99 102 241);
+}
+
+.vgc-select option {
+  background: white;
+  color: rgb(9 9 11);
+}

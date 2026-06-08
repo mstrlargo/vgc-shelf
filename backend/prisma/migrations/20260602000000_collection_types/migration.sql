@@ -1,0 +1,7 @@
+DO $$ BEGIN
+  CREATE TYPE "CollectionType" AS ENUM ('GAMES', 'SYSTEMS', 'PERIPHERALS', 'TOYS_TO_LIFE');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+ALTER TABLE "Collection" ADD COLUMN IF NOT EXISTS "type" "CollectionType" NOT NULL DEFAULT 'GAMES';

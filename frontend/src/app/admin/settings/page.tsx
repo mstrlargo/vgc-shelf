@@ -1,0 +1,638 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import { applyBranding } from "@/lib/branding";
+import { downloadAuthenticated } from "@/lib/download";
+import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
+import { Input } from "@/components/Input";
+import { Shell } from "@/components/Shell";
+import { DatabaseBackup, Trash2 } from "lucide-react";
+
+type ApiKeys = {
+  igdbClientId: string | null;
+  igdbClientSecret: string | null;
+  twitchAccessToken: string | null;
+  priceChartingApiKey: string | null;
+  rawgApiKey: string | null;
+  giantBombApiKey: string | null;
+  mobyGamesApiKey: string | null;
+  steamWebApiKey: string | null;
+  customMetadataApiUrl: string | null;
+  customMetadataApiKey: string | null;
+};
+
+type AdminBranding = {
+  appName: string;
+  pageTitle: string;
+  appIconUrl?: string | null;
+  assetTagPrefix?: string;
+  labelText?: string | null;
+};
+
+type Settings = {
+  allowPublicSignup: boolean;
+  branding: AdminBranding;
+  apiKeys: ApiKeys;
+};
+
+type AdminUser = {
+  id: string;
+  email: string;
+  name?: string | null;
+  role: "ADMIN" | "USER";
+  createdAt?: string;
+};
+
+const apiKeyFields: Array<{ key: keyof ApiKeys; label: string; placeholder?: string; type?: string }> = [
+  { key: "igdbClientId", label: "IGDB Client ID" },
+  { key: "igdbClientSecret", label: "IGDB Client Secret" },
+  { key: "twitchAccessToken", label: "Twitch Access Token" },
+  { key: "priceChartingApiKey", label: "PriceCharting API Key" },
+  { key: "rawgApiKey", label: "RAWG API Key" },
+  { key: "giantBombApiKey", label: "GiantBomb API Key" },
+  { key: "mobyGamesApiKey", label: "MobyGames API Key" },
+  { key: "steamWebApiKey", label: "Steam Web API Key" },
+  { key: "customMetadataApiUrl", label: "Custom Metadata API URL", placeholder: "https://example.com/api", type: "url" },
+  { key: "customMetadataApiKey", label: "Custom Metadata API Key" }
+];
+
+function blankApiKeys(): Record<keyof ApiKeys, string> {
+  return {
+    igdbClientId: "",
+    igdbClientSecret: "",
+    twitchAccessToken: "",
+    priceChartingApiKey: "",
+    rawgApiKey: "",
+    giantBombApiKey: "",
+    mobyGamesApiKey: "",
+    steamWebApiKey: "",
+    customMetadataApiUrl: "",
+    customMetadataApiKey: ""
+  };
+}
+
+function normalizePrefix(value: string) {
+  return value.replace(/[^a-zA-Z0-9]/g, "").slice(0, 3).toUpperCase();
+}
+
+function readTextFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file);
+  });
+}
+
+export default function AdminSettingsPage() {
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [apiKeyDraft, setApiKeyDraft] = useState<Record<keyof ApiKeys, string>>(blankApiKeys());
+  const [brandingDraft, setBrandingDraft] = useState<AdminBranding>({
+    appName: "VGC Shelf",
+    pageTitle: "VGC Shelf",
+    appIconUrl: "",
+    assetTagPrefix: "VGC",
+    labelText: ""
+  });
+
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("Password123!");
+  const [role, setRole] = useState<"ADMIN" | "USER">("USER");
+  const [resetPasswords, setResetPasswords] = useState<Record<string, string>>({});
+  const [jsonFile, setJsonFile] = useState<File | null>(null);
+  const [confirmReplace, setConfirmReplace] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function loadSettings() {
+    const settingsData = await api<{ settings: Settings }>("/admin/settings");
+
+    setSettings(settingsData.settings);
+    setApiKeyDraft(blankApiKeys());
+
+    setBrandingDraft({
+      appName: settingsData.settings.branding.appName || "VGC Shelf",
+      pageTitle: settingsData.settings.branding.pageTitle || "VGC Shelf",
+      appIconUrl: settingsData.settings.branding.appIconUrl || "",
+      assetTagPrefix: settingsData.settings.branding.assetTagPrefix || "VGC",
+      labelText: settingsData.settings.branding.labelText || ""
+    });
+  }
+
+  async function loadUsers() {
+    const usersData = await api<{ users: AdminUser[] }>("/admin/users");
+    setUsers(usersData.users);
+  }
+
+  async function load() {
+    setMessage("");
+
+    const results = await Promise.allSettled([loadSettings(), loadUsers()]);
+    const errors = results.filter((result) => result.status === "rejected") as PromiseRejectedResult[];
+
+    if (errors.length > 0) {
+      setMessage(errors.map((error) => error.reason?.message || "Failed to load admin data.").join(" "));
+    }
+  }
+
+  async function saveBranding(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage("");
+
+    const assetTagPrefix = normalizePrefix(brandingDraft.assetTagPrefix || "VGC");
+
+    if (assetTagPrefix.length !== 3) {
+      setMessage("Asset tag prefix must be exactly 3 letters or numbers.");
+      return;
+    }
+
+    try {
+      const data = await api<{ settings: Settings }>("/admin/settings", {
+        method: "PATCH",
+        body: JSON.stringify({
+          branding: {
+            appName: brandingDraft.appName,
+            pageTitle: brandingDraft.pageTitle,
+            appIconUrl: brandingDraft.appIconUrl || null,
+            assetTagPrefix,
+            labelText: brandingDraft.labelText || null
+          }
+        })
+      });
+
+      setSettings(data.settings);
+      setBrandingDraft({
+        appName: data.settings.branding.appName || "VGC Shelf",
+        pageTitle: data.settings.branding.pageTitle || "VGC Shelf",
+        appIconUrl: data.settings.branding.appIconUrl || "",
+        assetTagPrefix: data.settings.branding.assetTagPrefix || "VGC",
+        labelText: data.settings.branding.labelText || ""
+      });
+
+      applyBranding({
+        appName: data.settings.branding.appName || "VGC Shelf",
+        pageTitle: data.settings.branding.pageTitle || data.settings.branding.appName || "VGC Shelf",
+        appIconUrl: data.settings.branding.appIconUrl || "/vgcs-icon.png",
+        assetTagPrefix: data.settings.branding.assetTagPrefix || "VGC",
+        labelText: data.settings.branding.labelText || ""
+      });
+
+      setMessage("Branding saved.");
+    } catch (err: any) {
+      setMessage(err.message || "Failed to save branding.");
+    }
+  }
+
+  async function toggleSignup() {
+    if (!settings) return;
+
+    try {
+      const data = await api<{ settings: Settings }>("/admin/settings", {
+        method: "PATCH",
+        body: JSON.stringify({ allowPublicSignup: !settings.allowPublicSignup })
+      });
+
+      setSettings(data.settings);
+      setMessage(`Public signup ${data.settings.allowPublicSignup ? "enabled" : "disabled"}.`);
+    } catch (err: any) {
+      setMessage(err.message || "Failed to update signup setting.");
+    }
+  }
+
+  async function saveApiKeys(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage("");
+
+    const apiKeys: Record<string, string | null> = {};
+
+    for (const [key, value] of Object.entries(apiKeyDraft)) {
+      if (value.trim().length > 0) apiKeys[key] = value.trim();
+    }
+
+    try {
+      const data = await api<{ settings: Settings }>("/admin/settings", {
+        method: "PATCH",
+        body: JSON.stringify({ apiKeys })
+      });
+
+      setSettings(data.settings);
+      setApiKeyDraft(blankApiKeys());
+      setMessage("API settings saved. Stored keys are masked after save.");
+    } catch (err: any) {
+      setMessage(err.message || "Failed to save API settings.");
+    }
+  }
+
+  async function clearApiKey(key: keyof ApiKeys) {
+    try {
+      const data = await api<{ settings: Settings }>("/admin/settings", {
+        method: "PATCH",
+        body: JSON.stringify({ apiKeys: { [key]: "" } })
+      });
+
+      setSettings(data.settings);
+      setMessage("Stored API key cleared.");
+    } catch (err: any) {
+      setMessage(err.message || "Failed to clear API key.");
+    }
+  }
+
+  async function createUser(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage("");
+
+    try {
+      await api("/admin/users", {
+        method: "POST",
+        body: JSON.stringify({
+          email,
+          name: name || undefined,
+          password,
+          role
+        })
+      });
+
+      setEmail("");
+      setName("");
+      setPassword("Password123!");
+      setRole("USER");
+      setMessage("User created.");
+      await loadUsers();
+    } catch (err: any) {
+      setMessage(err.message || "Failed to create user.");
+    }
+  }
+
+  async function updateRole(userId: string, newRole: "ADMIN" | "USER") {
+    setMessage("");
+
+    try {
+      await api(`/admin/users/${userId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ role: newRole })
+      });
+
+      setMessage("User role updated.");
+      await loadUsers();
+    } catch (err: any) {
+      setMessage(err.message || "Failed to update user role.");
+    }
+  }
+
+  async function resetUserPassword(userId: string) {
+    setMessage("");
+
+    const newPassword = resetPasswords[userId];
+
+    if (!newPassword || newPassword.length < 8) {
+      setMessage("New password must be at least 8 characters.");
+      return;
+    }
+
+    try {
+      await api(`/admin/users/${userId}/reset-password`, {
+        method: "POST",
+        body: JSON.stringify({ password: newPassword })
+      });
+
+      setResetPasswords((prev) => ({ ...prev, [userId]: "" }));
+      setMessage("User password reset.");
+    } catch (err: any) {
+      setMessage(err.message || "Failed to reset password.");
+    }
+  }
+
+  async function deleteUser(user: AdminUser) {
+    setMessage("");
+
+    if (!confirm(`Delete user ${user.email}? This cannot be undone.`)) return;
+
+    try {
+      await api(`/admin/users/${user.id}`, {
+        method: "DELETE"
+      });
+
+      setMessage("User deleted.");
+      await loadUsers();
+    } catch (err: any) {
+      setMessage(err.message || "Failed to delete user.");
+    }
+  }
+
+  async function exportFullDatabase() {
+    setMessage("");
+
+    try {
+      await downloadAuthenticated(
+        "/backup/admin/export.json",
+        `vgc-shelf-backup-${new Date().toISOString().slice(0, 10)}.json`
+      );
+    } catch (err: any) {
+      setMessage(err.message || "Full database export failed.");
+    }
+  }
+
+  async function importFullDatabase(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage("");
+
+    if (!jsonFile) {
+      setMessage("Choose a JSON backup first.");
+      return;
+    }
+
+    if (!confirmReplace) {
+      setMessage("You must confirm replacement before importing a full database backup.");
+      return;
+    }
+
+    if (!confirm("This will replace the current database. Continue?")) return;
+
+    try {
+      const text = await readTextFile(jsonFile);
+      const backup = JSON.parse(text);
+
+      await api("/backup/admin/import.json", {
+        method: "POST",
+        body: JSON.stringify({
+          backup,
+          confirmReplace: true
+        })
+      });
+
+      setMessage("Full database import completed. You may need to sign in again.");
+    } catch (err: any) {
+      setMessage(err.message || "Full database import failed.");
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  return (
+    <Shell>
+      <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
+        <section className="space-y-6">
+          <Card>
+            <h2 className="text-xl font-bold">Branding</h2>
+
+            <form onSubmit={saveBranding} className="mt-5 space-y-4">
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">App Name</span>
+                <Input
+                  placeholder="VGC Shelf"
+                  value={brandingDraft.appName}
+                  onChange={(e) => setBrandingDraft((prev) => ({ ...prev, appName: e.target.value }))}
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Browser/Page Title</span>
+                <Input
+                  placeholder="VGC Shelf"
+                  value={brandingDraft.pageTitle}
+                  onChange={(e) => setBrandingDraft((prev) => ({ ...prev, pageTitle: e.target.value }))}
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Asset Label Text</span>
+                <Input
+                  placeholder="VGC Shelf"
+                  value={brandingDraft.labelText || ""}
+                  onChange={(e) => setBrandingDraft((prev) => ({ ...prev, labelText: e.target.value }))}
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">App Icon URL</span>
+                <Input
+                  placeholder="https://example.com/icon.png"
+                  value={brandingDraft.appIconUrl || ""}
+                  onChange={(e) => setBrandingDraft((prev) => ({ ...prev, appIconUrl: e.target.value }))}
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Asset Tag Prefix</span>
+                <Input
+                  placeholder="VGC"
+                  value={brandingDraft.assetTagPrefix || ""}
+                  onChange={(e) => setBrandingDraft((prev) => ({ ...prev, assetTagPrefix: normalizePrefix(e.target.value) }))}
+                  maxLength={3}
+                />
+                <span className="vgc-muted mt-1 block text-xs text-zinc-400">
+                  Exactly 3 letters or numbers. Example: {(brandingDraft.assetTagPrefix || "VGC").padEnd(3, "X")}-GAME-0001
+                </span>
+              </label>
+
+              <Button type="submit">Save branding</Button>
+            </form>
+          </Card>
+
+          <Card>
+            <h2 className="text-xl font-bold">Admin Settings</h2>
+            <p className="vgc-muted mt-1 text-sm text-zinc-400">Control account creation.</p>
+
+            <div className="vgc-surface mt-5 rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+              <div className="font-semibold">Public signup</div>
+              <p className="vgc-muted mt-1 text-sm text-zinc-400">
+                Current status:{" "}
+                <span className={settings?.allowPublicSignup ? "text-green-300" : "text-red-300"}>
+                  {settings?.allowPublicSignup ? "Enabled" : "Disabled"}
+                </span>
+              </p>
+
+              <Button className="mt-4" onClick={toggleSignup}>
+                {settings?.allowPublicSignup ? "Disable signup" : "Enable signup"}
+              </Button>
+            </div>
+          </Card>
+
+          <Card>
+            <h2 className="text-lg font-semibold">Create User</h2>
+
+            <form onSubmit={createUser} className="mt-4 space-y-3">
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Email</span>
+                <Input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Name</span>
+                <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Temporary Password</span>
+                <Input placeholder="Temporary password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Role</span>
+                <select
+                  className="vgc-select"
+                  style={{ colorScheme: "light" }}
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as "ADMIN" | "USER")}
+                >
+                  <option value="USER">User</option>
+                  <option value="ADMIN">Admin</option>
+                </select>
+              </label>
+
+              <Button type="submit">Create user</Button>
+            </form>
+          </Card>
+
+          <Card>
+            <div className="mb-5 flex items-center gap-3">
+              <DatabaseBackup className="h-6 w-6 vgc-accent-text" />
+              <div>
+                <h2 className="text-xl font-bold">Full Database Backup</h2>
+                <p className="vgc-muted text-sm text-zinc-400">Admin-only full export/import for disaster recovery.</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <Button type="button" onClick={exportFullDatabase}>
+                Export full database JSON
+              </Button>
+
+              <form onSubmit={importFullDatabase} className="rounded-xl border border-red-900 bg-red-950/30 p-4">
+                <h3 className="font-semibold text-red-200">Import full database JSON</h3>
+                <p className="mt-1 text-sm text-red-100">
+                  This replaces the current database. Only import backups you trust.
+                </p>
+
+                <div className="mt-4 space-y-3">
+                  <input
+                    type="file"
+                    accept=".json,application/json"
+                    onChange={(e) => setJsonFile(e.target.files?.[0] || null)}
+                    className="block w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950"
+                  />
+
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={confirmReplace}
+                      onChange={(e) => setConfirmReplace(e.target.checked)}
+                    />
+                    I understand this will replace the current database.
+                  </label>
+
+                  <button
+                    type="submit"
+                    className="rounded-xl border border-red-700 px-4 py-2 text-sm font-semibold text-red-200 hover:bg-red-900"
+                  >
+                    Import full database
+                  </button>
+                </div>
+              </form>
+            </div>
+          </Card>
+        </section>
+
+        <section className="space-y-6">
+          <Card>
+            <h2 className="text-xl font-bold">API Keys</h2>
+            <p className="vgc-muted mt-1 text-sm text-zinc-400">
+              Existing keys are masked. Enter a new value to replace one, or clear a field using the clear button.
+            </p>
+
+            <form onSubmit={saveApiKeys} className="mt-5 grid gap-4 md:grid-cols-2">
+              {apiKeyFields.map((field) => (
+                <div key={field.key} className="space-y-2">
+                  <label className="block text-sm font-medium">{field.label}</label>
+                  <div className="vgc-muted text-xs text-zinc-400">
+                    Stored: {settings?.apiKeys?.[field.key] || "Not set"}
+                  </div>
+
+                  <Input
+                    type={field.type || "password"}
+                    placeholder={field.placeholder || "Enter new value"}
+                    value={apiKeyDraft[field.key]}
+                    onChange={(e) => setApiKeyDraft((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                  />
+
+                  {settings?.apiKeys?.[field.key] && (
+                    <button type="button" onClick={() => clearApiKey(field.key)} className="text-xs text-red-300 hover:text-red-200">
+                      Clear stored value
+                    </button>
+                  )}
+                </div>
+              ))}
+
+              <div className="md:col-span-2">
+                <Button type="submit">Save API settings</Button>
+              </div>
+            </form>
+          </Card>
+
+          <Card>
+            <h2 className="text-xl font-bold">Users</h2>
+
+            {users.length === 0 ? (
+              <p className="mt-5 rounded-xl border border-dashed border-zinc-700 p-6 text-sm text-zinc-400">
+                No users loaded. If this persists, check the backend logs.
+              </p>
+            ) : (
+              <div className="mt-5 space-y-3">
+                {users.map((user) => (
+                  <div key={user.id} className="vgc-surface rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <div className="font-semibold">{user.email}</div>
+                        <div className="vgc-muted text-sm text-zinc-400">{user.name || "No name"} · {user.role}</div>
+                      </div>
+
+                      <select
+                        className="vgc-select md:w-40"
+                        style={{ colorScheme: "light" }}
+                        value={user.role}
+                        onChange={(e) => updateRole(user.id, e.target.value as "ADMIN" | "USER")}
+                      >
+                        <option value="USER">User</option>
+                        <option value="ADMIN">Admin</option>
+                      </select>
+                    </div>
+
+                    <div className="mt-4 grid gap-2 md:grid-cols-[1fr_auto_auto]">
+                      <Input
+                        type="password"
+                        placeholder="New password"
+                        value={resetPasswords[user.id] || ""}
+                        onChange={(e) => setResetPasswords((prev) => ({ ...prev, [user.id]: e.target.value }))}
+                      />
+
+                      <Button type="button" onClick={() => resetUserPassword(user.id)}>
+                        Reset password
+                      </Button>
+
+                      <button
+                        type="button"
+                        onClick={() => deleteUser(user)}
+                        className="flex items-center justify-center gap-2 rounded-xl border border-red-800 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-950"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </section>
+      </div>
+
+      {message && <p className="mt-6 rounded-lg bg-zinc-800 p-3 text-sm">{message}</p>}
+    </Shell>
+  );
+}

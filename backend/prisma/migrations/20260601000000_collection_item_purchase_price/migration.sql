@@ -1,0 +1,1 @@
+ALTER TABLE "CollectionItem" ADD COLUMN IF NOT EXISTS "purchasePrice" DECIMAL(10,2);
