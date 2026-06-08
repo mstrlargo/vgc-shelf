@@ -43,15 +43,13 @@ My goal is to grow VGC Shelf into a community-driven project that continues impr
 ## Features
 
 ### Collection Management
+<img src="screenshots/collections-page.png" alt="The default collections page" width="500">
 
 * Create multiple collections
 * Shared collections with multiple users
 * Collection images
 * Collection descriptions
 * Collection ownership and permissions
-
-### Game Tracking
-
 * Physical and digital games
 * Systems and consoles
 * Peripherals and accessories
@@ -69,11 +67,15 @@ My goal is to grow VGC Shelf into a community-driven project that continues impr
 
 ### Wishlist & Sell List
 
+<img src="screenshots/wish-page.png" alt="The Wish List page" width="500"> <img src="screenshots/sell-page.png" alt="The Sell List page" width="500">
+
 * Separate wishlist management
 * Sell list tracking
 * Collection-to-sell-list workflow
 
 ### Reporting
+
+<img src="screenshots/reports-page.png" alt="The reports page" width="500">
 
 * Collection value tracking
 * Platform breakdowns
@@ -81,6 +83,8 @@ My goal is to grow VGC Shelf into a community-driven project that continues impr
 * Checked-out item reports
 
 ### Administration
+
+<img src="screenshots/admin-page.png" alt="The admin page" width="500"> <img src="screenshots/settings-page.png" alt="The settings page" width="500">
 
 * User management
 * Registration controls
@@ -190,15 +194,6 @@ Before major upgrades, it is recommended to:
 ## Unraid Installation
 
 VGC Shelf is designed to run on standard Docker hosts and Unraid.
-
-Typical Unraid setup:
-
-* AppData storage for persistent data
-* PostgreSQL container
-* VGC Shelf frontend
-* VGC Shelf backend
-
-Map persistent volumes according to the provided compose files.
 
 ---
 
