@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: vgc-shelf-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vgc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vgcpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-vgcshelf}
+    volumes:
+      - vgc_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-vgc} -d $${POSTGRES_DB:-vgcshelf}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.unraid
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+        BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://127.0.0.1:4000}
+    container_name: vgc-shelf-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://vgc:vgcpassword@db:5432/vgcshelf?schema=public}
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      API_PORT: 4000
+      FRONTEND_PORT: 3000
+      REDIS_URL: ${REDIS_URL:-}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+      BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://127.0.0.1:4000}
+      UPLOAD_DIR: /app/uploads
+      PUBLIC_UPLOAD_BASE_URL: /uploads
+    volumes:
+      - ./uploads:/app/uploads
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+      - "${API_PORT:-4000}:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4000/health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  vgc_postgres_data:

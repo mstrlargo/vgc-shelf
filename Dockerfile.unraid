@@ -1,0 +1,64 @@
+FROM node:20-alpine AS backend-deps
+WORKDIR /app/backend
+RUN apk add --no-cache openssl libc6-compat
+COPY backend/package*.json ./
+RUN npm install
+
+FROM node:20-alpine AS backend-build
+WORKDIR /app/backend
+RUN apk add --no-cache openssl libc6-compat
+COPY --from=backend-deps /app/backend/node_modules ./node_modules
+COPY backend/ ./
+RUN npx prisma generate
+RUN npm run build
+
+FROM node:20-alpine AS frontend-deps
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm install
+
+FROM node:20-alpine AS frontend-build
+WORKDIR /app/frontend
+ARG NEXT_PUBLIC_API_URL=/api
+ARG BACKEND_INTERNAL_URL=http://127.0.0.1:4000
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL}
+COPY --from=frontend-deps /app/frontend/node_modules ./node_modules
+COPY frontend/ ./
+RUN npm run build
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+RUN apk add --no-cache openssl libc6-compat
+
+ENV NODE_ENV=production
+ENV API_PORT=4000
+ENV FRONTEND_PORT=3000
+ENV NEXT_PUBLIC_API_URL=/api
+ENV BACKEND_INTERNAL_URL=http://127.0.0.1:4000
+ENV UPLOAD_DIR=/app/uploads
+ENV PUBLIC_UPLOAD_BASE_URL=/uploads
+
+# Backend runtime
+WORKDIR /app/backend
+COPY backend/package*.json ./
+RUN npm install --omit=dev
+COPY --from=backend-build /app/backend/dist ./dist
+COPY --from=backend-build /app/backend/prisma ./prisma
+COPY --from=backend-build /app/backend/node_modules/.prisma ./node_modules/.prisma
+
+# Frontend standalone runtime
+WORKDIR /app/frontend
+COPY --from=frontend-build /app/frontend/.next/standalone ./
+COPY --from=frontend-build /app/frontend/.next/static ./.next/static
+COPY --from=frontend-build /app/frontend/public ./public
+
+# Start script
+WORKDIR /app
+COPY scripts/start-unraid.sh /app/start-unraid.sh
+RUN chmod +x /app/start-unraid.sh
+
+EXPOSE 3000
+EXPOSE 4000
+
+CMD ["/app/start-unraid.sh"]

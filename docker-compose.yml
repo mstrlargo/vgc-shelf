@@ -1,0 +1,73 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: vgc-shelf-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vgc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vgcpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-vgcshelf}
+    volumes:
+      - vgc_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-vgc} -d $${POSTGRES_DB:-vgcshelf}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./backend
+    container_name: vgc-shelf-backend
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      DATABASE_URL: ${DATABASE_URL:-postgresql://vgc:vgcpassword@db:5432/vgcshelf?schema=public}
+      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-secret}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      UPLOAD_DIR: /app/uploads
+      PUBLIC_UPLOAD_BASE_URL: /uploads
+      REDIS_URL: ${REDIS_URL:-}
+    volumes:
+      - ./uploads:/app/uploads
+    ports:
+      - "${API_PORT:-4000}:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # Use Node instead of wget so the check works reliably in the Node Alpine image.
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"const http=require('http'); const req=http.get('http://127.0.0.1:4000/health', res=>process.exit(res.statusCode===200?0:1)); req.on('error',()=>process.exit(1)); req.setTimeout(3000,()=>{req.destroy();process.exit(1)});\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+        BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:4000}
+    container_name: vgc-shelf-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+      BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:4000}
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      # Do not block the frontend forever if Docker health reporting is delayed.
+      # The frontend proxies API requests to the backend once it is ready.
+      backend:
+        condition: service_started
+
+volumes:
+  vgc_postgres_data:

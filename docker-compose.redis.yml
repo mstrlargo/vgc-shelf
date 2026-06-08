@@ -1,0 +1,13 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: vgc-shelf-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  backend:
+    environment:
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
