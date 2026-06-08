@@ -276,7 +276,7 @@ router.delete("/:id/members/:userId", async (req, res, next) => {
 });
 
 const partSchema = z.object({
-  type: z.enum(["DISC", "CARTRIDGE", "CASE", "BOX", "MANUAL", "INSERT", "COVER_ART", "STEELBOOK", "AMIIBO", "OTHER"]),
+  type: z.enum(["DISC", "CARTRIDGE", "BOX", "MANUAL", "INSERT", "COVER_ART", "STEELBOOK", "AMIIBO", "SEALED", "OTHER"]),
   condition: z.enum(["NEW", "LIKE_NEW", "VERY_GOOD", "GOOD", "ACCEPTABLE", "POOR", "MISSING"]).default("GOOD"),
   notes: z.string().optional().nullable()
 });
@@ -295,6 +295,9 @@ const createGameForCollectionSchema = z.object({
   edition: z.string().optional(),
   purchasePrice: z.number().nonnegative().optional(),
   estimatedValue: z.number().nonnegative().optional(),
+  priceChartingProductId: z.string().optional().nullable(),
+  priceChartingProductName: z.string().optional().nullable(),
+  priceChartingConsoleName: z.string().optional().nullable(),
   notes: z.string().optional(),
   parts: z.array(partSchema).optional()
 });
@@ -376,6 +379,9 @@ router.post("/:id/games", async (req, res, next) => {
         edition: cleanString(body.edition),
         purchasePrice: body.purchasePrice,
         estimatedValue: body.estimatedValue,
+        priceChartingProductId: cleanString(body.priceChartingProductId),
+        priceChartingProductName: cleanString(body.priceChartingProductName),
+        priceChartingConsoleName: cleanString(body.priceChartingConsoleName),
         notes: cleanString(body.notes),
         parts: body.parts ? {
           create: body.parts.map((part) => ({

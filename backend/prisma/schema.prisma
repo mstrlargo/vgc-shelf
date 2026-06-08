@@ -40,6 +40,7 @@ enum GamePartType {
   COVER_ART
   STEELBOOK
   AMIIBO
+  SEALED
   OTHER
 }
 
@@ -76,8 +77,6 @@ model User {
 
   memberships CollectionMember[]
   loansCreated Loan[]
-  wishlistItems WishlistItem[]
-  sellListItems SellListItem[]
 }
 
 model AppSetting {
@@ -163,6 +162,9 @@ model GameCopy {
   purchaseDate   DateTime?
   purchasePrice  Decimal? @db.Decimal(10, 2)
   estimatedValue Decimal? @db.Decimal(10, 2)
+  priceChartingProductId String?
+  priceChartingProductName String?
+  priceChartingConsoleName String?
   notes String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -245,49 +247,4 @@ model Loan {
 
   @@index([assetTagId])
   @@index([status])
-}
-
-
-model WishlistItem {
-  id          String   @id @default(cuid())
-  userId      String
-  title       String
-  platform    String?
-  category    String   @default("GAME")
-  priority    String   @default("MEDIUM")
-  targetPrice Decimal? @db.Decimal(10, 2)
-  notes       String?
-  imageUrl    String?
-  barcode     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([barcode])
-}
-
-model SellListItem {
-  id             String   @id @default(cuid())
-  userId         String
-  sourceType     String   @default("MANUAL")
-  sourceId       String?
-  title          String
-  platform       String?
-  category       String   @default("GAME")
-  askingPrice    Decimal? @db.Decimal(10, 2)
-  currentValue   Decimal? @db.Decimal(10, 2)
-  status         String   @default("AVAILABLE")
-  notes          String?
-  imageUrl       String?
-  assetTag       String?
-  collectionName String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([sourceId])
 }

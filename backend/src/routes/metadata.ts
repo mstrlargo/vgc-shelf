@@ -79,8 +79,64 @@ async function searchRawg(query: string, apiKey?: string | null): Promise<Metada
   })).filter((item: MetadataResult) => item.title);
 }
 
-async function searchIgdb(query: string, clientId?: string | null, accessToken?: string | null): Promise<MetadataResult[]> {
-  if (!clientId || !accessToken) return [];
+type IgdbTokenCache = {
+  clientId: string;
+  accessToken: string;
+  expiresAt: number;
+};
+
+let igdbTokenCache: IgdbTokenCache | null = null;
+
+async function getIgdbAccessToken(clientId: string, clientSecret?: string | null) {
+  if (!clientSecret) return null;
+
+  const now = Date.now();
+
+  if (
+    igdbTokenCache &&
+    igdbTokenCache.clientId === clientId &&
+    igdbTokenCache.expiresAt > now + 60_000
+  ) {
+    return igdbTokenCache.accessToken;
+  }
+
+  const url = new URL("https://id.twitch.tv/oauth2/token");
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("client_secret", clientSecret);
+  url.searchParams.set("grant_type", "client_credentials");
+
+  const res = await fetch(url, { method: "POST" });
+
+  if (!res.ok) {
+    const message = await res.text().catch(() => "");
+    throw new Error(`IGDB token request failed: ${res.status}${message ? ` ${message}` : ""}`);
+  }
+
+  const data = await res.json() as { access_token?: string; expires_in?: number };
+
+  if (!data.access_token) {
+    throw new Error("IGDB token request failed: missing access_token");
+  }
+
+  igdbTokenCache = {
+    clientId,
+    accessToken: data.access_token,
+    expiresAt: now + Math.max(60, data.expires_in || 3600) * 1000
+  };
+
+  return data.access_token;
+}
+
+async function searchIgdb(
+  query: string,
+  clientId?: string | null,
+  clientSecret?: string | null
+): Promise<MetadataResult[]> {
+  if (!clientId) return [];
+
+  const accessToken = await getIgdbAccessToken(clientId, clientSecret);
+
+  if (!accessToken) return [];
 
   const body = `
 search "${query.replace(/"/g, '\"')}";
@@ -99,7 +155,10 @@ limit 10;
     body
   });
 
-  if (!res.ok) throw new Error(`IGDB search failed: ${res.status}`);
+  if (!res.ok) {
+    const message = await res.text().catch(() => "");
+    throw new Error(`IGDB search failed: ${res.status}${message ? ` ${message}` : ""}`);
+  }
 
   const data = await res.json() as any[];
 
@@ -264,7 +323,13 @@ router.get("/search", async (req, res, next) => {
     }
 
     if (provider === "all" || provider === "rawg") addTask("RAWG", searchRawg(query, settings.rawgApiKey));
-    if (provider === "all" || provider === "igdb") addTask("IGDB", searchIgdb(query, settings.igdbClientId, settings.twitchAccessToken));
+    if (provider === "all" || provider === "igdb") {
+      addTask("IGDB", searchIgdb(
+        query,
+        settings.igdbClientId,
+        settings.igdbClientSecret
+      ));
+    }
     if (provider === "all" || provider === "giantbomb") addTask("GiantBomb", searchGiantBomb(query, settings.giantBombApiKey));
     if (provider === "all" || provider === "mobygames") addTask("MobyGames", searchMobyGames(query, settings.mobyGamesApiKey));
     if (provider === "all" || provider === "steam") addTask("Steam", searchSteam(query));

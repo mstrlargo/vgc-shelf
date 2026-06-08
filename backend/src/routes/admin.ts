@@ -94,7 +94,6 @@ async function publicSettings(settings: Awaited<ReturnType<typeof getSettings>>)
     apiKeys: {
       igdbClientId: maskSecret(raw.igdbClientId),
       igdbClientSecret: maskSecret(raw.igdbClientSecret),
-      twitchAccessToken: maskSecret(raw.twitchAccessToken),
       priceChartingApiKey: maskSecret(raw.priceChartingApiKey),
       rawgApiKey: maskSecret(raw.rawgApiKey),
       giantBombApiKey: maskSecret(raw.giantBombApiKey),
@@ -109,7 +108,6 @@ async function publicSettings(settings: Awaited<ReturnType<typeof getSettings>>)
 const apiKeySchema = z.object({
   igdbClientId: z.string().nullable().optional(),
   igdbClientSecret: z.string().nullable().optional(),
-  twitchAccessToken: z.string().nullable().optional(),
   priceChartingApiKey: z.string().nullable().optional(),
   rawgApiKey: z.string().nullable().optional(),
   giantBombApiKey: z.string().nullable().optional(),

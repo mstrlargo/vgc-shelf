@@ -21,6 +21,9 @@ const copySchema = z.object({
   purchaseDate: z.string().datetime().optional().nullable(),
   purchasePrice: z.number().nonnegative().optional().nullable(),
   estimatedValue: z.number().nonnegative().optional().nullable(),
+  priceChartingProductId: z.string().optional().nullable(),
+  priceChartingProductName: z.string().optional().nullable(),
+  priceChartingConsoleName: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   parts: z.array(partSchema).optional()
 });
@@ -33,6 +36,9 @@ const updateCopySchema = z.object({
   purchaseDate: z.string().datetime().optional().nullable(),
   purchasePrice: z.number().nonnegative().optional().nullable(),
   estimatedValue: z.number().nonnegative().optional().nullable(),
+  priceChartingProductId: z.string().optional().nullable(),
+  priceChartingProductName: z.string().optional().nullable(),
+  priceChartingConsoleName: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   parts: z.array(partSchema).optional(),
   game: z.object({
@@ -110,6 +116,9 @@ router.post("/collections/:collectionId/copies", requireAuth, async (req, res, n
         purchaseDate: body.purchaseDate ? new Date(body.purchaseDate) : undefined,
         purchasePrice: body.purchasePrice ?? undefined,
         estimatedValue: body.estimatedValue ?? undefined,
+        priceChartingProductId: cleanString(body.priceChartingProductId),
+        priceChartingProductName: cleanString(body.priceChartingProductName),
+        priceChartingConsoleName: cleanString(body.priceChartingConsoleName),
         notes: cleanString(body.notes),
         parts: parts ? { create: parts } : undefined
       },
@@ -223,6 +232,9 @@ router.patch("/copies/:id", requireAuth, async (req, res, next) => {
           purchaseDate: body.purchaseDate ? new Date(body.purchaseDate) : undefined,
           purchasePrice: typeof body.purchasePrice === "undefined" ? undefined : body.purchasePrice,
           estimatedValue: typeof body.estimatedValue === "undefined" ? undefined : body.estimatedValue,
+          priceChartingProductId: typeof body.priceChartingProductId === "undefined" ? undefined : cleanString(body.priceChartingProductId),
+          priceChartingProductName: typeof body.priceChartingProductName === "undefined" ? undefined : cleanString(body.priceChartingProductName),
+          priceChartingConsoleName: typeof body.priceChartingConsoleName === "undefined" ? undefined : cleanString(body.priceChartingConsoleName),
           notes: typeof body.notes === "undefined" ? undefined : cleanString(body.notes)
         },
         include: {
