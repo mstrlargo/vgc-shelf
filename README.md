@@ -1,4 +1,4 @@
-VGC Shelf
+# VGC Shelf
 
 **VGC Shelf (Video Game Collection Shelf)** is a self-hosted, open-source video game collection manager designed by collectors, for collectors.
 
@@ -236,7 +236,7 @@ Please open an issue or submit a pull request.
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the GNU General Public License v3.0.
 
 ---
 
