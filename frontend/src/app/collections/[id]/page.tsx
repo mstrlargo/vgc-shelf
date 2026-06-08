@@ -9,11 +9,7 @@ import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
 import { Modal } from "@/components/Modal";
 import { Shell } from "@/components/Shell";
-import { Camera, Disc3, DollarSign, Search, Tag, Trash2, UserPlus, Users } from "lucide-react";
-import { uploadImage } from "@/lib/fileUpload";
-import { money, deltaLabel } from "@/lib/format";
-import { collectionIcon, collectionTypeLabel, collectionTypes, itemNoun } from "@/lib/collectionTypes";
-import { ConditionGrade, defaultPartDrafts, GamePartType, PartDraft, conditionLabel, conditionOptions, partLabel, partOptions } from "@/lib/gameParts";
+import { Archive, Camera, Disc3, DollarSign, Gamepad2, Joystick, Package, Search, Tag, Trash2, UserPlus, Users } from "lucide-react";
 
 type CollectionResponse = {
   collection: Collection & {
@@ -40,6 +36,122 @@ type SellListSummary = {
   askingPrice?: string | number | null;
   status?: "AVAILABLE" | "SOLD" | "HOLD";
 };
+
+type GamePartType = "DISC" | "CARTRIDGE" | "BOX" | "MANUAL" | "INSERT" | "COVER_ART" | "STEELBOOK" | "AMIIBO" | "SEALED" | "OTHER";
+type ConditionGrade = "NEW" | "LIKE_NEW" | "VERY_GOOD" | "GOOD" | "ACCEPTABLE" | "POOR" | "MISSING";
+type PriceChartingCondition = "loose" | "cib" | "new" | "manual" | "box" | "graded";
+
+type PriceChartingProductMatch = {
+  id: string;
+  productName: string;
+  consoleName: string;
+  prices: Partial<Record<PriceChartingCondition, number | null>>;
+};
+
+type PartDraft = {
+  type: GamePartType;
+  enabled: boolean;
+  condition: ConditionGrade;
+  notes: string;
+};
+
+const partOptions: Array<{ type: GamePartType; label: string; priceChartingRole?: "media" | "box" | "manual" | "sealed" }> = [
+  { type: "DISC", label: "Disc / Game Media", priceChartingRole: "media" },
+  { type: "CARTRIDGE", label: "Cartridge / Game Media", priceChartingRole: "media" },
+  { type: "BOX", label: "Box / Original Packaging", priceChartingRole: "box" },
+  { type: "MANUAL", label: "Manual", priceChartingRole: "manual" },
+  { type: "SEALED", label: "New / Sealed", priceChartingRole: "sealed" },
+  { type: "INSERT", label: "Insert" },
+  { type: "COVER_ART", label: "Cover Art" },
+  { type: "STEELBOOK", label: "Steelbook" },
+  { type: "AMIIBO", label: "Amiibo" },
+  { type: "OTHER", label: "Other" }
+];
+
+const priceChartingConditionLabels: Record<PriceChartingCondition, string> = {
+  loose: "Loose / game only",
+  cib: "Complete in Box (game + box + manual)",
+  new: "New / sealed",
+  manual: "Manual only",
+  box: "Box only",
+  graded: "Graded"
+};
+
+const conditionOptions: Array<{ value: ConditionGrade; label: string }> = [
+  { value: "NEW", label: "New" },
+  { value: "LIKE_NEW", label: "Like New" },
+  { value: "VERY_GOOD", label: "Very Good" },
+  { value: "GOOD", label: "Good" },
+  { value: "ACCEPTABLE", label: "Acceptable" },
+  { value: "POOR", label: "Poor" },
+  { value: "MISSING", label: "Missing" }
+];
+
+const collectionTypes: Array<{ value: CollectionType; label: string }> = [
+  { value: "GAMES", label: "Games" },
+  { value: "SYSTEMS", label: "Systems" },
+  { value: "PERIPHERALS", label: "Peripherals" },
+  { value: "TOYS_TO_LIFE", label: "Toys-to-life" }
+];
+
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadImage(file: File) {
+  const dataBase64 = await readFileAsBase64(file);
+  const result = await api<{ url: string }>("/uploads/image", {
+    method: "POST",
+    body: JSON.stringify({ filename: file.name, mimeType: file.type, dataBase64 })
+  });
+  return result.url;
+}
+
+function defaultPartDrafts(): PartDraft[] {
+  return partOptions.map((part) => ({ type: part.type, enabled: false, condition: "GOOD", notes: "" }));
+}
+
+function money(value: unknown) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value || 0));
+}
+
+function deltaLabel(current: unknown, paid: unknown) {
+  const delta = Number(current || 0) - Number(paid || 0);
+  if (!Number.isFinite(delta) || (!current && !paid)) return null;
+  return { text: `${delta >= 0 ? "+" : ""}${money(delta)}`, className: delta >= 0 ? "text-green-300" : "text-red-300" };
+}
+
+function partLabel(type: string) {
+  return partOptions.find((part) => part.type === type)?.label || type.replaceAll("_", " ");
+}
+
+function conditionLabel(condition: string) {
+  return conditionOptions.find((item) => item.value === condition)?.label || condition.replaceAll("_", " ");
+}
+
+function collectionTypeLabel(type?: CollectionType) {
+  return collectionTypes.find((item) => item.value === type)?.label || "Games";
+}
+
+function itemNoun(type?: CollectionType) {
+  if (type === "SYSTEMS") return "System";
+  if (type === "PERIPHERALS") return "Peripheral";
+  if (type === "TOYS_TO_LIFE") return "Toy-to-life";
+  return "Item";
+}
+
+function collectionIcon(type?: CollectionType) {
+  if (type === "SYSTEMS") return <Archive className="h-5 w-5 vgc-accent-text" />;
+  if (type === "PERIPHERALS") return <Joystick className="h-5 w-5 vgc-accent-text" />;
+  if (type === "TOYS_TO_LIFE") return <Package className="h-5 w-5 vgc-accent-text" />;
+  return <Gamepad2 className="h-5 w-5 vgc-accent-text" />;
+}
 
 type BarcodeDetectorType = {
   detect: (source: CanvasImageSource) => Promise<Array<{ rawValue: string }>>;
@@ -96,8 +208,15 @@ export default function CollectionManagementPage({ params }: { params: { id: str
   const [edition, setEdition] = useState("");
   const [pricePaid, setPricePaid] = useState("");
   const [currentValue, setCurrentValue] = useState("");
+  const [priceChartingProductId, setPriceChartingProductId] = useState("");
+  const [priceChartingProductName, setPriceChartingProductName] = useState("");
+  const [priceChartingConsoleName, setPriceChartingConsoleName] = useState("");
+  const [priceChartingMatches, setPriceChartingMatches] = useState<PriceChartingProductMatch[]>([]);
+  const [selectedPriceChartingProduct, setSelectedPriceChartingProduct] = useState<PriceChartingProductMatch | null>(null);
+  const [isPriceChartingSearching, setIsPriceChartingSearching] = useState(false);
   const [format, setFormat] = useState<"PHYSICAL" | "DIGITAL">("PHYSICAL");
   const [partDrafts, setPartDrafts] = useState<PartDraft[]>(defaultPartDrafts());
+  const [autoUpdatePriceCharting, setAutoUpdatePriceCharting] = useState(false);
   const [editingCopyId, setEditingCopyId] = useState<string | null>(null);
   const [showGameModal, setShowGameModal] = useState(false);
 
@@ -153,14 +272,30 @@ export default function CollectionManagementPage({ params }: { params: { id: str
     return partDrafts.filter((part) => part.enabled).map((part) => ({ type: part.type, condition: part.condition, notes: part.notes || undefined }));
   }
 
-  function priceChartingCondition() {
+  function priceChartingCondition(): PriceChartingCondition {
     if (format === "DIGITAL") return "loose";
-    const hasBox = partDrafts.some((part) => part.enabled && (part.type === "BOX" || part.type === "CASE" || part.type === "COVER_ART"));
-    const hasManual = partDrafts.some((part) => part.enabled && part.type === "MANUAL");
-    const isNew = partDrafts.some((part) => part.enabled && part.condition === "NEW");
+
+    const enabledParts = partDrafts.filter((part) => part.enabled);
+    const hasGameMedia = enabledParts.some((part) => part.type === "DISC" || part.type === "CARTRIDGE");
+    const hasBox = enabledParts.some((part) => part.type === "BOX" || part.type === "COVER_ART" || part.type === "STEELBOOK");
+    const hasManual = enabledParts.some((part) => part.type === "MANUAL");
+    const hasSealed = enabledParts.some((part) => part.type === "SEALED");
+    const isNew = hasSealed || (hasGameMedia && enabledParts.some((part) => part.condition === "NEW"));
+
     if (isNew) return "new";
-    if (hasBox && hasManual) return "cib";
+    if (hasGameMedia && hasBox && hasManual) return "cib";
+    if (!hasGameMedia && hasManual && !hasBox) return "manual";
+    if (!hasGameMedia && hasBox && !hasManual) return "box";
+
     return "loose";
+  }
+
+  function priceChartingConditionLabel() {
+    return priceChartingConditionLabels[priceChartingCondition()];
+  }
+
+  function selectedPlatformName() {
+    return (newPlatformName || platforms.find((p) => p.id === platformId)?.name || "").trim();
   }
 
   function resetGameForm() {
@@ -172,10 +307,16 @@ export default function CollectionManagementPage({ params }: { params: { id: str
     setEdition("");
     setPricePaid("");
     setCurrentValue("");
+    setPriceChartingProductId("");
+    setPriceChartingProductName("");
+    setPriceChartingConsoleName("");
+    setPriceChartingMatches([]);
+    setSelectedPriceChartingProduct(null);
     setRegion("NTSC-U");
     setBarcode("");
     setFormat("PHYSICAL");
     setPartDrafts(defaultPartDrafts());
+    setAutoUpdatePriceCharting(false);
     setEditingCopyId(null);
     setMetadataResults([]);
   }
@@ -196,8 +337,23 @@ export default function CollectionManagementPage({ params }: { params: { id: str
   }
 
   function updatePart(type: GamePartType, patch: Partial<PartDraft>) {
-    setPartDrafts((current) => current.map((part) => part.type === type ? { ...part, ...patch } : part));
+    setPartDrafts((current) => current.map((part) => {
+      if (part.type !== type) return part;
+      const nextPart = { ...part, ...patch };
+      if (type === "SEALED" && patch.enabled) {
+        return { ...nextPart, condition: "NEW" };
+      }
+      return nextPart;
+    }));
   }
+
+  useEffect(() => {
+    if (!showGameModal || !autoUpdatePriceCharting || format !== "PHYSICAL") return;
+    const timer = window.setTimeout(() => {
+      void fetchPriceChartingForGame(false);
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [showGameModal, autoUpdatePriceCharting, format, partDrafts, title, platformId, newPlatformName, barcode]);
 
   async function saveCollection(e: React.FormEvent) {
     e.preventDefault();
@@ -256,20 +412,97 @@ export default function CollectionManagementPage({ params }: { params: { id: str
     }
   }
 
-  async function lookupPriceChartingForGame() {
+  function priceChartingSearchQuery() {
+    const platformName = selectedPlatformName();
+    if (barcode.trim()) return `upc=${encodeURIComponent(barcode.trim())}`;
+    const q = [title.trim(), platformName].filter(Boolean).join(" ").trim();
+    return q ? `q=${encodeURIComponent(q)}` : "";
+  }
+
+  async function selectPriceChartingMatch(match: PriceChartingProductMatch) {
+    setPriceChartingProductId(match.id);
+    setPriceChartingProductName(match.productName);
+    setPriceChartingConsoleName(match.consoleName);
+    setSelectedPriceChartingProduct(match);
+    setMessage(`Selected PriceCharting match: ${match.productName}${match.consoleName ? ` (${match.consoleName})` : ""}. Loading condition prices...`);
+
+    try {
+      const data = await api<{ product: PriceChartingProductMatch }>(`/metadata/pricecharting/product?productId=${encodeURIComponent(match.id)}`);
+      const detailed = data.product || match;
+      setSelectedPriceChartingProduct(detailed);
+      setPriceChartingProductName(detailed.productName || match.productName);
+      setPriceChartingConsoleName(detailed.consoleName || match.consoleName);
+      setPriceChartingMatches((existing) => existing.map((item) => item.id === detailed.id ? detailed : item));
+      const selectedCondition = priceChartingCondition();
+      const value = detailed.prices?.[selectedCondition];
+      if (typeof value === "number" && value > 0) {
+        setCurrentValue(String(value));
+        setMessage(`Selected PriceCharting match: ${detailed.productName}${detailed.consoleName ? ` (${detailed.consoleName})` : ""}. ${priceChartingConditionLabels[selectedCondition]} price loaded: ${money(value)}.`);
+      } else {
+        setMessage(`Selected PriceCharting match: ${detailed.productName}${detailed.consoleName ? ` (${detailed.consoleName})` : ""}. Use Autofill after choosing the component condition.`);
+      }
+    } catch (err: any) {
+      setMessage(err.message || "Selected PriceCharting match, but condition prices could not be loaded yet. Autofill can still try the saved product ID.");
+    }
+  }
+
+  async function searchPriceChartingProducts() {
     setMessage("");
-    const query = barcode ? `upc=${encodeURIComponent(barcode)}` : `q=${encodeURIComponent(`${title} ${newPlatformName || platforms.find((p) => p.id === platformId)?.name || ""}`.trim())}`;
-    if (!barcode && !title) {
-      setMessage("Enter a game title or barcode first.");
+    const query = priceChartingSearchQuery();
+    if (!query) {
+      setMessage("Enter a game title, platform, or barcode before searching PriceCharting.");
       return;
     }
+    setIsPriceChartingSearching(true);
     try {
-      const data = await api<{ result: { currentValue: number } }>(`/metadata/pricecharting/value?${query}&condition=${priceChartingCondition()}`);
-      setCurrentValue(String(data.result.currentValue));
-      setMessage(`Current Value filled from PriceCharting: ${money(data.result.currentValue)}.`);
+      const data = await api<{ products: PriceChartingProductMatch[] }>(`/metadata/pricecharting/products?${query}`);
+      setPriceChartingMatches(data.products || []);
+      setSelectedPriceChartingProduct(null);
+      if (!data.products || data.products.length === 0) {
+        setMessage("No PriceCharting matches found. Try a shorter title or search with the console name.");
+      }
     } catch (err: any) {
-      setMessage(err.message || "PriceCharting lookup failed.");
+      setMessage(err.message || "PriceCharting product search failed.");
+    } finally {
+      setIsPriceChartingSearching(false);
     }
+  }
+
+  async function fetchPriceChartingForGame(showMessage = true) {
+    if (showMessage) setMessage("");
+
+    if (!priceChartingProductId && !barcode.trim()) {
+      if (showMessage) setMessage("Search PriceCharting and select the correct product match first.");
+      return false;
+    }
+
+    const query = new URLSearchParams();
+    if (priceChartingProductId) query.set("productId", priceChartingProductId);
+    else if (barcode.trim()) query.set("upc", barcode.trim());
+
+    try {
+      const selectedCondition = priceChartingCondition();
+      query.set("condition", selectedCondition);
+      const data = await api<{ result: { currentValue: number; condition: PriceChartingCondition; priceLabel?: string; productId?: string; productName?: string | null; consoleName?: string | null; priceKey?: string } }>(`/metadata/pricecharting/value?${query.toString()}`);
+      setCurrentValue(String(data.result.currentValue));
+      if (data.result.productId) setPriceChartingProductId(String(data.result.productId));
+      if (data.result.productName) setPriceChartingProductName(data.result.productName);
+      if (data.result.consoleName) setPriceChartingConsoleName(data.result.consoleName);
+      const productNote = [data.result.productName || priceChartingProductName, data.result.consoleName || priceChartingConsoleName].filter(Boolean).join(" / ");
+      const label = data.result.priceLabel || priceChartingConditionLabels[data.result.condition] || priceChartingConditionLabel();
+      if (showMessage || autoUpdatePriceCharting) {
+        setMessage(`Current Value filled from PriceCharting ${label}${productNote ? ` for ${productNote}` : ""}: ${money(data.result.currentValue)}.`);
+      }
+      return true;
+    } catch (err: any) {
+      if (showMessage) setMessage(err.message || "PriceCharting lookup failed.");
+      return false;
+    }
+  }
+
+  async function lookupPriceChartingForGame() {
+    const updated = await fetchPriceChartingForGame(true);
+    if (updated) setAutoUpdatePriceCharting(true);
   }
 
   async function lookupPriceChartingForItem() {
@@ -281,9 +514,10 @@ export default function CollectionManagementPage({ params }: { params: { id: str
       return;
     }
     try {
-      const data = await api<{ result: { currentValue: number } }>(`/metadata/pricecharting/value?${query}&condition=loose`);
+      const itemPriceCondition: PriceChartingCondition = itemCondition === "NEW" ? "new" : "loose";
+      const data = await api<{ result: { currentValue: number; condition: PriceChartingCondition; priceLabel?: string } }>(`/metadata/pricecharting/value?${query}&condition=${itemPriceCondition}`);
       setItemCurrentValue(String(data.result.currentValue));
-      setMessage(`Current Value filled from PriceCharting: ${money(data.result.currentValue)}.`);
+      setMessage(`Current Value filled from PriceCharting ${data.result.priceLabel || priceChartingConditionLabels[data.result.condition] || "Loose / game only"}: ${money(data.result.currentValue)}.`);
     } catch (err: any) {
       setMessage(err.message || "PriceCharting lookup failed.");
     }
@@ -442,6 +676,9 @@ export default function CollectionManagementPage({ params }: { params: { id: str
             edition: edition || null,
             purchasePrice: pricePaid ? Number(pricePaid) : null,
             estimatedValue: currentValue ? Number(currentValue) : null,
+            priceChartingProductId: priceChartingProductId || null,
+            priceChartingProductName: priceChartingProductName || null,
+            priceChartingConsoleName: priceChartingConsoleName || null,
             format,
             parts,
             game: {
@@ -470,6 +707,9 @@ export default function CollectionManagementPage({ params }: { params: { id: str
             edition: edition || undefined,
             purchasePrice: pricePaid ? Number(pricePaid) : undefined,
             estimatedValue: currentValue ? Number(currentValue) : undefined,
+            priceChartingProductId: priceChartingProductId || undefined,
+            priceChartingProductName: priceChartingProductName || undefined,
+            priceChartingConsoleName: priceChartingConsoleName || undefined,
             format,
             parts
           })
@@ -540,12 +780,17 @@ export default function CollectionManagementPage({ params }: { params: { id: str
     setEdition(copy.edition || "");
     setPricePaid(copy.purchasePrice ? String(copy.purchasePrice) : "");
     setCurrentValue(copy.estimatedValue ? String(copy.estimatedValue) : "");
+    setPriceChartingProductId(copy.priceChartingProductId || "");
+    setPriceChartingProductName(copy.priceChartingProductName || "");
+    setPriceChartingConsoleName(copy.priceChartingConsoleName || "");
+    setPriceChartingMatches([]);
     setFormat(copy.format);
     const nextParts = defaultPartDrafts();
     for (const existingPart of copy.parts || []) {
-      const index = nextParts.findIndex((part) => part.type === existingPart.type);
+      const normalizedType = existingPart.type === "CASE" ? "BOX" : existingPart.type;
+      const index = nextParts.findIndex((part) => part.type === normalizedType);
       if (index >= 0) {
-        nextParts[index] = { type: existingPart.type as GamePartType, enabled: true, condition: existingPart.condition as ConditionGrade, notes: existingPart.notes || "" };
+        nextParts[index] = { type: normalizedType as GamePartType, enabled: true, condition: existingPart.condition as ConditionGrade, notes: existingPart.notes || "" };
       }
     }
     setPartDrafts(nextParts);
@@ -993,8 +1238,25 @@ export default function CollectionManagementPage({ params }: { params: { id: str
             <select className="vgc-select" style={{ colorScheme: "light" }} value={format} onChange={(e) => setFormat(e.target.value as "PHYSICAL" | "DIGITAL")}><option value="PHYSICAL">Physical</option><option value="DIGITAL">Digital</option></select>
             <Input placeholder="Barcode" value={barcode} onChange={(e) => setBarcode(e.target.value)} /><Input placeholder="Region" value={region} onChange={(e) => setRegion(e.target.value)} /><Input placeholder="Edition" value={edition} onChange={(e) => setEdition(e.target.value)} />
             <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]"><Input placeholder="Price Paid" value={pricePaid} onChange={(e) => setPricePaid(e.target.value)} /><Input placeholder="Current Value" value={currentValue} onChange={(e) => setCurrentValue(e.target.value)} /><Button type="button" onClick={lookupPriceChartingForGame}>Autofill</Button></div>
+            <div className="rounded-xl border border-blue-900/60 bg-blue-950/20 p-3 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="font-semibold text-blue-100">PriceCharting product match</div>
+                  <p className="mt-1 text-xs text-zinc-400">Match the exact PriceCharting product then use Autofill to update the price.</p><p className="mt-2 text-xs text-amber-200">Note: PriceCharting API access to CIB, New/Sealed, Box Only, Manual Only, and other non-loose values may require PriceCharting Legendary tier. Lower tiers may only return loose pricing even when the public PriceCharting page shows additional values.</p>
+                </div>
+                <Button type="button" onClick={searchPriceChartingProducts} disabled={isPriceChartingSearching}>{isPriceChartingSearching ? "Searching..." : "Search PriceCharting"}</Button>
+              </div>
+              {priceChartingProductId && <div className="mt-3 rounded-lg border border-blue-800 bg-blue-950/40 p-2 text-xs text-blue-100">Selected: {priceChartingProductName || "PriceCharting product"}{priceChartingConsoleName ? ` (${priceChartingConsoleName})` : ""}</div>}
+              {priceChartingMatches.length > 0 && <div className="mt-3 space-y-2">{priceChartingMatches.map((match) => <button key={match.id} type="button" onClick={() => selectPriceChartingMatch(match)} className={`w-full rounded-xl border px-3 py-2 text-left text-sm hover:bg-blue-950 ${priceChartingProductId === match.id ? "border-blue-500 bg-blue-950/60" : "border-zinc-800 bg-zinc-950"}`}><div className="font-semibold">{match.productName} <span className="text-zinc-400">({match.consoleName})</span></div><div className="mt-1 text-xs text-zinc-400">{selectedPriceChartingProduct?.id === match.id ? <>Loose {selectedPriceChartingProduct.prices.loose ? money(selectedPriceChartingProduct.prices.loose) : "—"} · CIB {selectedPriceChartingProduct.prices.cib ? money(selectedPriceChartingProduct.prices.cib) : "—"} · New {selectedPriceChartingProduct.prices.new ? money(selectedPriceChartingProduct.prices.new) : "—"} · Box {selectedPriceChartingProduct.prices.box ? money(selectedPriceChartingProduct.prices.box) : "—"} · Manual {selectedPriceChartingProduct.prices.manual ? money(selectedPriceChartingProduct.prices.manual) : "—"}</> : "Select this product to load condition prices"}</div></button>)}</div>}
+            </div>
+            {format === "PHYSICAL" && (
+              <div className="rounded-xl border border-blue-900/60 bg-blue-950/20 p-3 text-sm">
+                <div className="font-semibold text-blue-100">PriceCharting condition: {priceChartingConditionLabel()}</div>
+                <p className="mt-1 text-xs text-zinc-400">Autofill uses the selected components below: game only = loose, game + box + manual = CIB, box only = box-only, manual only = manual-only, and New / Sealed = new/sealed. After the first autofill, changing these options refreshes the value automatically.</p>
+              </div>
+            )}
             {duplicateMatches.length > 0 && !editingCopyId && <div className="rounded-xl border border-amber-700 bg-amber-950/30 p-3 text-sm text-amber-100"><div className="font-semibold">Possible duplicate already in this collection</div>{duplicateMatches.slice(0, 4).map((match) => <div key={`${match.type}-${match.id}`} className="mt-1">{match.title}{match.platform ? ` · ${match.platform}` : ""}{match.assetTag?.tag ? ` · ${match.assetTag.tag}` : ""} <span className="text-amber-300">({match.reason})</span></div>)}</div>}
-            {format === "PHYSICAL" && <div className="rounded-xl border border-zinc-800 p-4"><h3 className="mb-3 font-semibold">Physical parts included</h3><div className="space-y-3">{partDrafts.map((part) => <div key={part.type} className="vgc-surface rounded-xl border border-zinc-800 bg-zinc-950 p-3"><label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={part.enabled} onChange={(e) => updatePart(part.type, { enabled: e.target.checked })} />{partLabel(part.type)}</label>{part.enabled && <div className="mt-3 grid gap-2 md:grid-cols-2"><select className="vgc-select" style={{ colorScheme: "light" }} value={part.condition} onChange={(e) => updatePart(part.type, { condition: e.target.value as ConditionGrade })}>{conditionOptions.map((condition) => <option key={condition.value} value={condition.value}>{condition.label}</option>)}</select><Input placeholder="Part notes" value={part.notes} onChange={(e) => updatePart(part.type, { notes: e.target.value })} /></div>}</div>)}</div></div>}
+            {format === "PHYSICAL" && <div className="rounded-xl border border-zinc-800 p-4"><h3 className="mb-1 font-semibold">Physical parts included</h3><p className="mb-3 text-xs text-zinc-400">These options are aligned to PriceCharting conditions where possible.</p><div className="space-y-3">{partDrafts.map((part) => <div key={part.type} className="vgc-surface rounded-xl border border-zinc-800 bg-zinc-950 p-3"><label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={part.enabled} onChange={(e) => updatePart(part.type, { enabled: e.target.checked })} />{partLabel(part.type)}</label>{part.enabled && <div className="mt-3 grid gap-2 md:grid-cols-2"><select className="vgc-select" style={{ colorScheme: "light" }} value={part.condition} onChange={(e) => updatePart(part.type, { condition: e.target.value as ConditionGrade })}>{conditionOptions.map((condition) => <option key={condition.value} value={condition.value}>{condition.label}</option>)}</select><Input placeholder="Part notes" value={part.notes} onChange={(e) => updatePart(part.type, { notes: e.target.value })} /></div>}</div>)}</div></div>}
             <div className="grid grid-cols-2 gap-2"><Button type="submit">{editingCopyId ? "Save changes" : "Add game"}</Button><Button type="button" onClick={() => { setShowGameModal(false); resetGameForm(); }}>Cancel</Button></div>
           </form>
         </Modal>

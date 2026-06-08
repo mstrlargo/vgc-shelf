@@ -129,6 +129,9 @@ export type GameCopy = {
   edition?: string | null;
   purchasePrice?: string | null;
   estimatedValue?: string | null;
+  priceChartingProductId?: string | null;
+  priceChartingProductName?: string | null;
+  priceChartingConsoleName?: string | null;
   notes?: string | null;
   assetTag?: AssetTagLite | null;
   parts: Array<{

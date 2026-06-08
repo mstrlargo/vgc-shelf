@@ -13,7 +13,6 @@ import { DatabaseBackup, Trash2 } from "lucide-react";
 type ApiKeys = {
   igdbClientId: string | null;
   igdbClientSecret: string | null;
-  twitchAccessToken: string | null;
   priceChartingApiKey: string | null;
   rawgApiKey: string | null;
   giantBombApiKey: string | null;
@@ -48,7 +47,6 @@ type AdminUser = {
 const apiKeyFields: Array<{ key: keyof ApiKeys; label: string; placeholder?: string; type?: string }> = [
   { key: "igdbClientId", label: "IGDB Client ID" },
   { key: "igdbClientSecret", label: "IGDB Client Secret" },
-  { key: "twitchAccessToken", label: "Twitch Access Token" },
   { key: "priceChartingApiKey", label: "PriceCharting API Key" },
   { key: "rawgApiKey", label: "RAWG API Key" },
   { key: "giantBombApiKey", label: "GiantBomb API Key" },
@@ -62,7 +60,6 @@ function blankApiKeys(): Record<keyof ApiKeys, string> {
   return {
     igdbClientId: "",
     igdbClientSecret: "",
-    twitchAccessToken: "",
     priceChartingApiKey: "",
     rawgApiKey: "",
     giantBombApiKey: "",
@@ -545,7 +542,6 @@ export default function AdminSettingsPage() {
             <p className="vgc-muted mt-1 text-sm text-zinc-400">
               Existing keys are masked. Enter a new value to replace one, or clear a field using the clear button.
             </p>
-
             <form onSubmit={saveApiKeys} className="mt-5 grid gap-4 md:grid-cols-2">
               {apiKeyFields.map((field) => (
                 <div key={field.key} className="space-y-2">
