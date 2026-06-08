@@ -8,12 +8,13 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vgcpassword}
       POSTGRES_DB: ${POSTGRES_DB:-vgcshelf}
     volumes:
-      - vgc_postgres_data:/var/lib/postgresql/data
+      - ${VGC_APPDATA:-/mnt/user/appdata/vgc-shelf}/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-vgc} -d $${POSTGRES_DB:-vgcshelf}"]
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 20s
 
   app:
     build:
@@ -36,7 +37,7 @@ services:
       UPLOAD_DIR: /app/uploads
       PUBLIC_UPLOAD_BASE_URL: /uploads
     volumes:
-      - ./uploads:/app/uploads
+      - ${VGC_APPDATA:-/mnt/user/appdata/vgc-shelf}/uploads:/app/uploads
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
       - "${API_PORT:-4000}:4000"
@@ -44,10 +45,12 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:4000/health >/dev/null 2>&1 || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"const http=require('http'); const req=http.get('http://127.0.0.1:4000/health', res=>process.exit(res.statusCode===200?0:1)); req.on('error',()=>process.exit(1)); req.setTimeout(3000,()=>{req.destroy();process.exit(1)});\""
+        ]
       interval: 30s
       timeout: 5s
       retries: 5
-
-volumes:
-  vgc_postgres_data:
+      start_period: 40s
