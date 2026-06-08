@@ -1,4 +1,4 @@
-VGC Shelf
+# VGC Shelf
 
 **VGC Shelf (Video Game Collection Shelf)** is a self-hosted, open-source video game collection manager designed by collectors, for collectors.
 
