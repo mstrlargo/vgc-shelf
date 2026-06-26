@@ -41,10 +41,36 @@ router.get("/", async (req, res, next) => {
       orderBy: { createdAt: "desc" }
     });
 
+    const collectionIds = memberships.map((m) => m.collectionId);
+
+    const activeAssetTags = collectionIds.length
+      ? await prisma.assetTag.findMany({
+          where: {
+            loans: { some: { status: "CHECKED_OUT" } },
+            OR: [
+              { gameCopy: { is: { collectionId: { in: collectionIds } } } },
+              { collectionItem: { is: { collectionId: { in: collectionIds } } } }
+            ]
+          },
+          select: {
+            gameCopy: { select: { collectionId: true } },
+            collectionItem: { select: { collectionId: true } }
+          }
+        })
+      : [];
+
+    const checkedOutCounts = activeAssetTags.reduce<Record<string, number>>((counts, assetTag) => {
+      const collectionId = assetTag.gameCopy?.collectionId || assetTag.collectionItem?.collectionId;
+      if (!collectionId) return counts;
+      counts[collectionId] = (counts[collectionId] || 0) + 1;
+      return counts;
+    }, {});
+
     res.json({
       collections: memberships.map((m) => ({
         ...m.collection,
-        role: m.role
+        role: m.role,
+        checkedOutCount: checkedOutCounts[m.collectionId] || 0
       }))
     });
   } catch (err) {
