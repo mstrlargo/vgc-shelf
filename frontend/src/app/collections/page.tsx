@@ -1,12 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api, Collection, CollectionType, publicAssetUrl } from "@/lib/api";
+import { useEffect, useMemo, useState } from "react";
+import { API_URL, api, Collection, CollectionType, getToken, publicAssetUrl } from "@/lib/api";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
 import { Shell } from "@/components/Shell";
-import { Archive, Gamepad2, ImagePlus, Joystick, Package, Plus } from "lucide-react";
+import { Archive, BarChart3, Download, Gamepad2, ImagePlus, Joystick, Package, Plus, SquarePlus, Tags } from "lucide-react";
+
+type CollectionSort = "name-asc" | "name-desc" | "type-asc" | "recent" | "oldest" | "items-desc";
+
+type SortableCollection = Collection & {
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+const collectionSortOptions: Array<{ value: CollectionSort; label: string }> = [
+  { value: "name-asc", label: "Name A-Z" },
+  { value: "name-desc", label: "Name Z-A" },
+  { value: "type-asc", label: "Type" },
+  { value: "recent", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "items-desc", label: "Most items" }
+];
 
 const collectionTypes: Array<{ value: CollectionType; label: string; description: string }> = [
   { value: "GAMES", label: "Games", description: "Physical and digital video games" },
@@ -45,19 +61,98 @@ function typeIcon(type: CollectionType) {
   return <Package className="h-5 w-5 vgc-accent-text" />;
 }
 
+
+function collectionItemCount(collection: SortableCollection) {
+  if (collection.type === "GAMES") return collection._count?.copies ?? 0;
+  return collection._count?.items ?? 0;
+}
+
+function itemLabel(collection: SortableCollection) {
+  const count = collectionItemCount(collection);
+  const noun = collection.type === "GAMES" ? "game" : "item";
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+function checkedOutLabel(collection: SortableCollection) {
+  const count = collection.checkedOutCount ?? 0;
+  return `${count} checked out`;
+}
+
+function CollectionCover({ collection }: { collection: SortableCollection }) {
+  if (collection.imageUrl) {
+    return (
+      <img
+        src={publicAssetUrl(collection.imageUrl)}
+        alt=""
+        className="aspect-[16/9] w-full rounded-xl border border-zinc-800 bg-zinc-950 object-cover"
+      />
+    );
+  }
+
+  return (
+    <div className="aspect-[16/9] w-full rounded-xl border border-dashed border-zinc-700 bg-gradient-to-br from-zinc-900 via-zinc-950 to-zinc-900 p-4">
+      <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-3">
+          {typeIcon(collection.type)}
+        </div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">No cover image</div>
+      </div>
+    </div>
+  );
+}
+
+function QuickActionLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+  return (
+    <a
+      href={href}
+      className="flex items-center justify-center gap-1 rounded-lg border border-zinc-800 px-2 py-2 text-xs font-semibold text-zinc-300 hover:vgc-accent-border hover:vgc-accent-text"
+    >
+      {icon}
+      <span>{label}</span>
+    </a>
+  );
+}
+
 export default function CollectionsPage() {
-  const [collections, setCollections] = useState<Collection[]>([]);
+  const [collections, setCollections] = useState<SortableCollection[]>([]);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [type, setType] = useState<CollectionType>("GAMES");
+  const [sort, setSort] = useState<CollectionSort>("name-asc");
   const [message, setMessage] = useState("");
 
   async function load() {
-    const data = await api<{ collections: Collection[] }>("/collections");
+    const data = await api<{ collections: SortableCollection[] }>("/collections");
     setCollections(data.collections);
+  }
+
+  async function exportCollectionCsv(collection: SortableCollection) {
+    setMessage("");
+
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_URL}/backup/collections/${collection.id}/export.csv`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error("Failed to export collection.");
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const safeName = collection.name.replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || "collection";
+      link.href = url;
+      link.download = `${safeName}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setMessage(err.message || "Failed to export collection.");
+    }
   }
 
   async function createCollection(e: React.FormEvent) {
@@ -100,10 +195,34 @@ export default function CollectionsPage() {
     load().catch((err) => setMessage(err.message));
   }, []);
 
+  const sortedCollections = useMemo(() => {
+    const timeFor = (collection: SortableCollection, field: "createdAt" | "updatedAt") => {
+      const rawValue = collection[field];
+      return rawValue ? new Date(rawValue).getTime() : 0;
+    };
+
+    return [...collections].sort((a, b) => {
+      if (sort === "name-asc") return a.name.localeCompare(b.name);
+      if (sort === "name-desc") return b.name.localeCompare(a.name);
+      if (sort === "type-asc") {
+        const typeCompare = typeLabel(a.type).localeCompare(typeLabel(b.type));
+        return typeCompare || a.name.localeCompare(b.name);
+      }
+      if (sort === "recent") return timeFor(b, "createdAt") - timeFor(a, "createdAt");
+      if (sort === "oldest") return timeFor(a, "createdAt") - timeFor(b, "createdAt");
+      if (sort === "items-desc") {
+        const countCompare = collectionItemCount(b) - collectionItemCount(a);
+        return countCompare || a.name.localeCompare(b.name);
+      }
+      return 0;
+    });
+  }, [collections, sort]);
+
+
   return (
     <Shell>
       <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
-        <Card>
+        <Card className="order-2 lg:order-1">
           <div className="mb-4 flex items-center gap-2">
             <Plus className="h-5 w-5 vgc-accent-text" />
             <h2 className="text-xl font-bold">Create Collection</h2>
@@ -144,33 +263,73 @@ export default function CollectionsPage() {
           {message && <p className="mt-4 rounded-lg bg-zinc-800 p-3 text-sm">{message}</p>}
         </Card>
 
-        <Card>
-          <h2 className="text-xl font-bold">Collections</h2>
-          <p className="vgc-muted mt-1 text-sm text-zinc-400">
-            Each collection tracks one type of thing.
-          </p>
+        <Card className="order-1 lg:order-2">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-xl font-bold">Collections</h2>
+              <p className="vgc-muted mt-1 text-sm text-zinc-400">
+                Each collection tracks one type of thing.
+              </p>
+            </div>
+
+            <label className="flex flex-col gap-1 text-sm sm:min-w-44">
+              <span className="vgc-muted text-xs font-semibold uppercase tracking-wide text-zinc-500">Sort collections</span>
+              <select className="vgc-select" style={{ colorScheme: "light" }} value={sort} onChange={(e) => setSort(e.target.value as CollectionSort)}>
+                {collectionSortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
 
           <div className="mt-5 grid gap-4 md:grid-cols-2">
-            {collections.map((collection) => (
-              <a key={collection.id} href={`/collections/${collection.id}`} className="vgc-surface rounded-xl border border-zinc-800 bg-zinc-950 p-4 hover:vgc-accent-border">
-                {collection.imageUrl ? (
-                  <img src={publicAssetUrl(collection.imageUrl)} alt="" className="mb-3 h-32 w-full rounded-xl border border-zinc-800 object-cover" />
-                ) : null}
+            {sortedCollections.map((collection) => (
+              <article key={collection.id} className="vgc-surface rounded-xl border border-zinc-800 bg-zinc-950 p-4 hover:vgc-accent-border">
+                <a href={`/collections/${collection.id}`} className="block">
+                  <CollectionCover collection={collection} />
 
-                <div className="mb-3 flex items-center gap-2">
-                  {typeIcon(collection.type)}
-                  <span className="rounded-full bg-zinc-800 px-2 py-1 text-xs">{typeLabel(collection.type)}</span>
+                  <div className="mb-3 mt-3 flex items-center gap-2">
+                    {typeIcon(collection.type)}
+                    <span className="rounded-full bg-zinc-800 px-2 py-1 text-xs">{typeLabel(collection.type)}</span>
+                  </div>
+
+                  <h3 className="font-semibold">{collection.name}</h3>
+                  <p className="vgc-muted mt-1 line-clamp-2 min-h-10 text-sm text-zinc-400">{collection.description || "No description"}</p>
+
+                  <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-2">
+                      <div className="font-semibold text-zinc-100">{itemLabel(collection)}</div>
+                      <div className="vgc-muted mt-1 text-zinc-500">Tracked</div>
+                    </div>
+                    <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-2">
+                      <div className="font-semibold text-zinc-100">{checkedOutLabel(collection)}</div>
+                      <div className="vgc-muted mt-1 text-zinc-500">Lending</div>
+                    </div>
+                    <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-2">
+                      <div className="font-semibold text-zinc-100">{collection._count?.members ?? 0}</div>
+                      <div className="vgc-muted mt-1 text-zinc-500">Members</div>
+                    </div>
+                  </div>
+
+                  <div className="vgc-muted mt-3 text-xs text-zinc-500">Your role: {collection.role}</div>
+                </a>
+
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <QuickActionLink href={`/collections/${collection.id}?action=add`} icon={<SquarePlus className="h-3.5 w-3.5" />} label="Add" />
+                  <QuickActionLink href={`/assets?collectionId=${collection.id}`} icon={<Tags className="h-3.5 w-3.5" />} label="Tags" />
+                  <button
+                    type="button"
+                    onClick={() => exportCollectionCsv(collection)}
+                    className="flex items-center justify-center gap-1 rounded-lg border border-zinc-800 px-2 py-2 text-xs font-semibold text-zinc-300 hover:vgc-accent-border hover:vgc-accent-text"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Export</span>
+                  </button>
+                  <QuickActionLink href={`/reports?collectionId=${collection.id}`} icon={<BarChart3 className="h-3.5 w-3.5" />} label="Reports" />
                 </div>
-
-                <h3 className="font-semibold">{collection.name}</h3>
-                <p className="vgc-muted mt-1 text-sm text-zinc-400">{collection.description || "No description"}</p>
-
-                <div className="vgc-muted mt-3 text-xs text-zinc-500">
-                  {collection.type === "GAMES"
-                    ? `${collection._count?.copies ?? 0} games`
-                    : `${collection._count?.items ?? 0} items`} · {collection._count?.members ?? 0} members · {collection.role}
-                </div>
-              </a>
+              </article>
             ))}
           </div>
 

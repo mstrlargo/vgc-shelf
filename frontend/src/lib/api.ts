@@ -98,6 +98,7 @@ export type Collection = {
     members: number;
     items?: number;
   };
+  checkedOutCount?: number;
   members?: CollectionMember[];
   copies?: GameCopy[];
   items?: CollectionItem[];

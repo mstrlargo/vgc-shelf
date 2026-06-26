@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { api, Collection, CollectionItem, CollectionMember, CollectionType, DuplicateGroup, DuplicateItem, GameCopy, MetadataResult, Platform, User, publicAssetUrl } from "@/lib/api";
 import { Branding, loadBranding } from "@/lib/branding";
 import { AssetPanel } from "@/components/AssetPanel";
@@ -9,7 +9,7 @@ import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
 import { Modal } from "@/components/Modal";
 import { Shell } from "@/components/Shell";
-import { Archive, Camera, Disc3, DollarSign, Gamepad2, Joystick, Package, Search, Tag, Trash2, UserPlus, Users } from "lucide-react";
+import { Archive, Camera, ChevronDown, Disc3, DollarSign, Gamepad2, Joystick, Package, Search, Tag, Trash2, UserPlus, Users } from "lucide-react";
 
 type CollectionResponse = {
   collection: Collection & {
@@ -144,6 +144,42 @@ function itemNoun(type?: CollectionType) {
   if (type === "PERIPHERALS") return "Peripheral";
   if (type === "TOYS_TO_LIFE") return "Toy-to-life";
   return "Item";
+}
+
+
+function MobileCollapsibleCard({
+  title,
+  icon,
+  children,
+  defaultMobileOpen = false
+}: {
+  title: string;
+  icon: ReactNode;
+  children: ReactNode;
+  defaultMobileOpen?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultMobileOpen);
+
+  return (
+    <Card>
+      <button
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+        className={`flex w-full items-center justify-between gap-3 text-left md:pointer-events-none ${isOpen ? "mb-4" : "mb-0 md:mb-4"}`}
+        aria-expanded={isOpen}
+      >
+        <div className="flex items-center gap-2">
+          {icon}
+          <h3 className="text-lg font-semibold">{title}</h3>
+        </div>
+        <ChevronDown className={`h-5 w-5 text-zinc-400 transition-transform md:hidden ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+
+      <div className={`${isOpen ? "block" : "hidden"} md:block`}>
+        {children}
+      </div>
+    </Card>
+  );
 }
 
 function collectionIcon(type?: CollectionType) {
@@ -1023,8 +1059,7 @@ export default function CollectionManagementPage({ params }: { params: { id: str
 
       <div className="grid gap-6 lg:grid-cols-[430px_1fr]">
         <section className="space-y-6">
-          <Card>
-            <div className="mb-4 flex items-center gap-2"><Camera className="h-5 w-5 vgc-accent-text" /><h3 className="text-lg font-semibold">Barcode</h3></div>
+          <MobileCollapsibleCard title="Barcode" icon={<Camera className="h-5 w-5 vgc-accent-text" />}>
             {canEdit ? (
               <div className="space-y-3">
                 <Input placeholder="UPC/EAN barcode" value={isGamesCollection ? barcode : itemBarcode} onChange={(e) => { setBarcode(e.target.value); setItemBarcode(e.target.value); }} />
@@ -1036,11 +1071,10 @@ export default function CollectionManagementPage({ params }: { params: { id: str
                 {duplicateMatches.length > 0 && <div className="rounded-xl border border-amber-700 bg-amber-950/30 p-3 text-sm text-amber-100"><div className="font-semibold">Possible duplicate</div>{duplicateMatches.slice(0, 3).map((match) => <div key={`${match.type}-${match.id}`} className="mt-1">{match.title}{match.platform ? ` · ${match.platform}` : ""}{match.assetTag?.tag ? ` · ${match.assetTag.tag}` : ""} <span className="text-amber-300">({match.reason})</span></div>)}</div>}
               </div>
             ) : <p className="rounded-lg bg-zinc-800 p-3 text-sm text-zinc-300">You have viewer access.</p>}
-          </Card>
+          </MobileCollapsibleCard>
 
           {isGamesCollection && (
-            <Card>
-              <div className="mb-4 flex items-center gap-2"><Search className="h-5 w-5 vgc-accent-text" /><h3 className="text-lg font-semibold">Search Game Metadata</h3></div>
+            <MobileCollapsibleCard title="Search Game Metadata" icon={<Search className="h-5 w-5 vgc-accent-text" />}>
               {canEdit ? (
                 <>
                   <form onSubmit={searchMetadata} className="space-y-3">
@@ -1062,7 +1096,7 @@ export default function CollectionManagementPage({ params }: { params: { id: str
                   </div>
                 </>
               ) : <p className="rounded-lg bg-zinc-800 p-3 text-sm text-zinc-300">You have viewer access.</p>}
-            </Card>
+            </MobileCollapsibleCard>
           )}
 
           <Card>
@@ -1084,8 +1118,7 @@ export default function CollectionManagementPage({ params }: { params: { id: str
             )}
           </Card>
 
-          <Card>
-            <div className="mb-4 flex items-center gap-2"><UserPlus className="h-5 w-5 vgc-accent-text" /><h3 className="text-lg font-semibold">Add Person to Collection</h3></div>
+          <MobileCollapsibleCard title="Add Person to Collection" icon={<UserPlus className="h-5 w-5 vgc-accent-text" />}>
             {canEdit ? (
               <form onSubmit={addMember} className="space-y-3">
                 <Input type="email" placeholder="User email" value={memberEmail} onChange={(e) => setMemberEmail(e.target.value)} />
@@ -1095,7 +1128,7 @@ export default function CollectionManagementPage({ params }: { params: { id: str
                 <Button type="submit" className="w-full">Add person</Button>
               </form>
             ) : <p className="rounded-lg bg-zinc-800 p-3 text-sm text-zinc-300">You have viewer access.</p>}
-          </Card>
+          </MobileCollapsibleCard>
 
           <Card>
             <div className="mb-4 flex items-center gap-2"><Users className="h-5 w-5 vgc-accent-text" /><h3 className="text-lg font-semibold">Members</h3></div>
