@@ -22,6 +22,12 @@ function categoryForCollectionType(type: CollectionType) {
   return null;
 }
 
+const itemPartSchema = z.object({
+  type: z.string().min(1),
+  condition: z.nativeEnum(ConditionGrade).default(ConditionGrade.GOOD),
+  notes: z.string().optional().nullable()
+});
+
 const itemSchema = z.object({
   name: z.string().min(1),
   maker: z.string().optional().nullable(),
@@ -30,10 +36,16 @@ const itemSchema = z.object({
   serialNumber: z.string().optional().nullable(),
   barcode: z.string().optional().nullable(),
   condition: z.nativeEnum(ConditionGrade).default(ConditionGrade.GOOD),
+  releaseYear: z.number().int().positive().optional().nullable(),
+  description: z.string().optional().nullable(),
+  priceChartingProductId: z.string().optional().nullable(),
+  priceChartingProductName: z.string().optional().nullable(),
+  priceChartingConsoleName: z.string().optional().nullable(),
   purchasePrice: z.number().nonnegative().optional().nullable(),
   estimatedValue: z.number().nonnegative().optional().nullable(),
   imageUrl: z.string().url().optional().nullable(),
-  notes: z.string().optional().nullable()
+  notes: z.string().optional().nullable(),
+  parts: z.array(itemPartSchema).optional().default([])
 });
 
 const updateItemSchema = itemSchema.partial();
@@ -50,6 +62,9 @@ router.get("/collections/:collectionId/items", async (req, res, next) => {
 
     const items = await prisma.collectionItem.findMany({
       where: { collectionId: req.params.collectionId },
+      include: {
+        parts: { orderBy: { createdAt: "asc" } }
+      },
       orderBy: { createdAt: "desc" }
     });
 
@@ -94,11 +109,24 @@ router.post("/collections/:collectionId/items", async (req, res, next) => {
         serialNumber: cleanString(body.serialNumber),
         barcode: cleanString(body.barcode),
         condition: body.condition,
+        releaseYear: body.releaseYear ?? undefined,
+        description: cleanString(body.description),
+        priceChartingProductId: cleanString(body.priceChartingProductId),
+        priceChartingProductName: cleanString(body.priceChartingProductName),
+        priceChartingConsoleName: cleanString(body.priceChartingConsoleName),
         purchasePrice: body.purchasePrice ?? undefined,
         estimatedValue: body.estimatedValue ?? undefined,
         imageUrl: cleanString(body.imageUrl),
-        notes: cleanString(body.notes)
-      }
+        notes: cleanString(body.notes),
+        parts: {
+          create: (body.parts || []).map((part) => ({
+            type: part.type as any,
+            condition: part.condition,
+            notes: cleanString(part.notes)
+          }))
+        }
+      },
+      include: { parts: { orderBy: { createdAt: "asc" } } }
     });
 
     res.status(201).json({ item });
@@ -142,11 +170,27 @@ router.patch("/items/:id", async (req, res, next) => {
         serialNumber: typeof body.serialNumber === "undefined" ? undefined : cleanString(body.serialNumber),
         barcode: typeof body.barcode === "undefined" ? undefined : cleanString(body.barcode),
         condition: body.condition,
+        releaseYear: typeof body.releaseYear === "undefined" ? undefined : body.releaseYear,
+        description: typeof body.description === "undefined" ? undefined : cleanString(body.description),
+        priceChartingProductId: typeof body.priceChartingProductId === "undefined" ? undefined : cleanString(body.priceChartingProductId),
+        priceChartingProductName: typeof body.priceChartingProductName === "undefined" ? undefined : cleanString(body.priceChartingProductName),
+        priceChartingConsoleName: typeof body.priceChartingConsoleName === "undefined" ? undefined : cleanString(body.priceChartingConsoleName),
         purchasePrice: typeof body.purchasePrice === "undefined" ? undefined : body.purchasePrice,
         estimatedValue: typeof body.estimatedValue === "undefined" ? undefined : body.estimatedValue,
         imageUrl: typeof body.imageUrl === "undefined" ? undefined : cleanString(body.imageUrl),
-        notes: typeof body.notes === "undefined" ? undefined : cleanString(body.notes)
-      }
+        notes: typeof body.notes === "undefined" ? undefined : cleanString(body.notes),
+        ...(typeof body.parts === "undefined" ? {} : {
+          parts: {
+            deleteMany: {},
+            create: (body.parts || []).map((part) => ({
+              type: part.type as any,
+              condition: part.condition,
+              notes: cleanString(part.notes)
+            }))
+          }
+        })
+      },
+      include: { parts: { orderBy: { createdAt: "asc" } } }
     });
 
     res.json({ item });

@@ -199,6 +199,11 @@ model CollectionItem {
   serialNumber String?
   barcode      String?
   condition    ConditionGrade         @default(GOOD)
+  releaseYear  Int?
+  description  String?
+  priceChartingProductId String?
+  priceChartingProductName String?
+  priceChartingConsoleName String?
   purchasePrice Decimal? @db.Decimal(10, 2)
   estimatedValue Decimal? @db.Decimal(10, 2)
   imageUrl     String?
@@ -207,10 +212,22 @@ model CollectionItem {
   updatedAt DateTime @updatedAt
 
   collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  parts CollectionItemPart[]
   assetTag AssetTag?
 
   @@index([collectionId])
   @@index([barcode])
+}
+
+model CollectionItemPart {
+  id     String @id @default(cuid())
+  itemId String
+  type      GamePartType
+  condition ConditionGrade @default(GOOD)
+  notes String?
+  createdAt DateTime @default(now())
+
+  item CollectionItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
 }
 
 model AssetTag {

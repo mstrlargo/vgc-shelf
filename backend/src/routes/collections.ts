@@ -147,6 +147,7 @@ router.get("/:id", async (req, res, next) => {
         },
         items: {
           include: {
+            parts: { orderBy: { createdAt: "asc" } },
             assetTag: { include: assetTagInclude }
           },
           orderBy: { createdAt: "desc" }
