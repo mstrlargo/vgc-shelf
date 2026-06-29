@@ -32,6 +32,9 @@ export type MetadataResult = {
   platformName?: string | null;
   sourceUrl?: string | null;
   barcode?: string | null;
+  priceChartingProductId?: string | null;
+  priceChartingProductName?: string | null;
+  priceChartingConsoleName?: string | null;
 };
 
 export type CollectionType = "GAMES" | "SYSTEMS" | "PERIPHERALS" | "TOYS_TO_LIFE";
@@ -71,10 +74,21 @@ export type CollectionItem = {
   serialNumber?: string | null;
   barcode?: string | null;
   condition: string;
+  releaseYear?: number | null;
+  description?: string | null;
+  priceChartingProductId?: string | null;
+  priceChartingProductName?: string | null;
+  priceChartingConsoleName?: string | null;
   purchasePrice?: string | null;
   estimatedValue?: string | null;
   imageUrl?: string | null;
   notes?: string | null;
+  parts?: Array<{
+    id: string;
+    type: string;
+    condition: string;
+    notes?: string | null;
+  }>;
   assetTag?: AssetTagLite | null;
 };
 

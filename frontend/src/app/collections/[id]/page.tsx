@@ -265,6 +265,8 @@ export default function CollectionManagementPage({ params }: { params: { id: str
   const [itemSerialNumber, setItemSerialNumber] = useState("");
   const [itemBarcode, setItemBarcode] = useState("");
   const [itemCondition, setItemCondition] = useState<ConditionGrade>("GOOD");
+  const [itemReleaseYear, setItemReleaseYear] = useState("");
+  const [itemDescription, setItemDescription] = useState("");
   const [itemPricePaid, setItemPricePaid] = useState("");
   const [itemCurrentValue, setItemCurrentValue] = useState("");
   const [itemImageUrl, setItemImageUrl] = useState("");
@@ -366,10 +368,19 @@ export default function CollectionManagementPage({ params }: { params: { id: str
     setItemSerialNumber("");
     setItemBarcode("");
     setItemCondition("GOOD");
+    setItemReleaseYear("");
+    setItemDescription("");
     setItemPricePaid("");
     setItemCurrentValue("");
     setItemImageUrl("");
     setItemNotes("");
+    setPriceChartingProductId("");
+    setPriceChartingProductName("");
+    setPriceChartingConsoleName("");
+    setPriceChartingMatches([]);
+    setSelectedPriceChartingProduct(null);
+    setFormat("PHYSICAL");
+    setPartDrafts(defaultPartDrafts());
   }
 
   function updatePart(type: GamePartType, patch: Partial<PartDraft>) {
@@ -430,17 +441,61 @@ export default function CollectionManagementPage({ params }: { params: { id: str
   async function searchMetadata(e: React.FormEvent) {
     e.preventDefault();
     setMessage("");
-    if (metadataQuery.trim().length < 2) {
+    const queryText = metadataQuery.trim();
+
+    if (queryText.length < 2) {
       setMessage("Enter at least 2 characters to search.");
       return;
     }
+
     setIsSearching(true);
     try {
-      const data = await api<{ results: MetadataResult[]; errors: Array<{ provider: string; error: string }> }>(
-        `/metadata/search?q=${encodeURIComponent(metadataQuery)}&provider=${encodeURIComponent(metadataProvider)}`
-      );
-      setMetadataResults(data.results);
-      if (data.results.length === 0) setMessage("No metadata results found.");
+      const shouldSearchMetadata = metadataProvider !== "pricecharting";
+      const shouldSearchPriceCharting = metadataProvider === "all" || metadataProvider === "pricecharting";
+
+      const metadataPromise = shouldSearchMetadata
+        ? api<{ results: MetadataResult[]; errors: Array<{ provider: string; error: string }> }>(
+            `/metadata/search?q=${encodeURIComponent(queryText)}&provider=${encodeURIComponent(metadataProvider)}`
+          ).catch((err: any) => ({
+            results: [] as MetadataResult[],
+            errors: [{ provider: "Metadata", error: err?.message || "Metadata search failed" }]
+          }))
+        : Promise.resolve({ results: [] as MetadataResult[], errors: [] as Array<{ provider: string; error: string }> });
+
+      const priceChartingPromise = shouldSearchPriceCharting
+        ? api<{ products: PriceChartingProductMatch[] }>(
+            `/metadata/pricecharting/products?q=${encodeURIComponent(queryText)}`
+          ).catch(() => ({ products: [] as PriceChartingProductMatch[] }))
+        : Promise.resolve({ products: [] as PriceChartingProductMatch[] });
+
+      const [metadataData, priceChartingData] = await Promise.all([metadataPromise, priceChartingPromise]);
+
+      const priceChartingResults: MetadataResult[] = (priceChartingData.products || []).slice(0, 10).map((product) => ({
+        provider: "PriceCharting",
+        externalId: product.id,
+        title: product.productName,
+        description: "PriceCharting product match",
+        releaseYear: null,
+        coverUrl: null,
+        platformName: product.consoleName || null,
+        sourceUrl: null,
+        barcode: null,
+        priceChartingProductId: product.id,
+        priceChartingProductName: product.productName,
+        priceChartingConsoleName: product.consoleName || null
+      }));
+
+      const seen = new Set<string>();
+      const combinedResults = [...metadataData.results, ...priceChartingResults].filter((result) => {
+        const key = `${result.provider}:${result.externalId}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      setMetadataResults(combinedResults);
+      if (combinedResults.length === 0) setMessage("No metadata or PriceCharting results found.");
+      else if (metadataData.errors.length > 0) setMessage("Some metadata providers failed, but available results are shown.");
     } catch (err: any) {
       setMessage(err.message || "Metadata search failed.");
     } finally {
@@ -449,6 +504,12 @@ export default function CollectionManagementPage({ params }: { params: { id: str
   }
 
   function priceChartingSearchQuery() {
+    if (showItemModal) {
+      if (itemBarcode.trim()) return `upc=${encodeURIComponent(itemBarcode.trim())}`;
+      const q = [itemName.trim(), itemPlatform.trim()].filter(Boolean).join(" ").trim();
+      return q ? `q=${encodeURIComponent(q)}` : "";
+    }
+
     const platformName = selectedPlatformName();
     if (barcode.trim()) return `upc=${encodeURIComponent(barcode.trim())}`;
     const q = [title.trim(), platformName].filter(Boolean).join(" ").trim();
@@ -472,7 +533,8 @@ export default function CollectionManagementPage({ params }: { params: { id: str
       const selectedCondition = priceChartingCondition();
       const value = detailed.prices?.[selectedCondition];
       if (typeof value === "number" && value > 0) {
-        setCurrentValue(String(value));
+        if (showItemModal) setItemCurrentValue(String(value));
+        else setCurrentValue(String(value));
         setMessage(`Selected PriceCharting match: ${detailed.productName}${detailed.consoleName ? ` (${detailed.consoleName})` : ""}. ${priceChartingConditionLabels[selectedCondition]} price loaded: ${money(value)}.`);
       } else {
         setMessage(`Selected PriceCharting match: ${detailed.productName}${detailed.consoleName ? ` (${detailed.consoleName})` : ""}. Use Autofill after choosing the component condition.`);
@@ -486,7 +548,7 @@ export default function CollectionManagementPage({ params }: { params: { id: str
     setMessage("");
     const query = priceChartingSearchQuery();
     if (!query) {
-      setMessage("Enter a game title, platform, or barcode before searching PriceCharting.");
+      setMessage("Enter a title, platform, or barcode before searching PriceCharting.");
       return;
     }
     setIsPriceChartingSearching(true);
@@ -543,17 +605,28 @@ export default function CollectionManagementPage({ params }: { params: { id: str
 
   async function lookupPriceChartingForItem() {
     setMessage("");
-    const queryText = `${itemName} ${itemPlatform}`.trim();
-    const query = itemBarcode ? `upc=${encodeURIComponent(itemBarcode)}` : `q=${encodeURIComponent(queryText)}`;
-    if (!itemBarcode && !queryText) {
-      setMessage("Enter an item name or barcode first.");
-      return;
+    const query = new URLSearchParams();
+    if (priceChartingProductId) query.set("productId", priceChartingProductId);
+    else if (itemBarcode.trim()) query.set("upc", itemBarcode.trim());
+    else {
+      const queryText = `${itemName} ${itemPlatform}`.trim();
+      if (!queryText) {
+        setMessage("Enter an item name, platform, barcode, or select a PriceCharting match first.");
+        return;
+      }
+      query.set("q", queryText);
     }
+
+    const selectedCondition = priceChartingCondition();
+    query.set("condition", selectedCondition);
+
     try {
-      const itemPriceCondition: PriceChartingCondition = itemCondition === "NEW" ? "new" : "loose";
-      const data = await api<{ result: { currentValue: number; condition: PriceChartingCondition; priceLabel?: string } }>(`/metadata/pricecharting/value?${query}&condition=${itemPriceCondition}`);
+      const data = await api<{ result: { currentValue: number; condition: PriceChartingCondition; priceLabel?: string; productId?: string; productName?: string | null; consoleName?: string | null } }>(`/metadata/pricecharting/value?${query.toString()}`);
       setItemCurrentValue(String(data.result.currentValue));
-      setMessage(`Current Value filled from PriceCharting ${data.result.priceLabel || priceChartingConditionLabels[data.result.condition] || "Loose / game only"}: ${money(data.result.currentValue)}.`);
+      if (data.result.productId) setPriceChartingProductId(String(data.result.productId));
+      if (data.result.productName) setPriceChartingProductName(data.result.productName);
+      if (data.result.consoleName) setPriceChartingConsoleName(data.result.consoleName);
+      setMessage(`Current Value filled from PriceCharting ${data.result.priceLabel || priceChartingConditionLabels[data.result.condition] || priceChartingConditionLabel()}: ${money(data.result.currentValue)}.`);
     } catch (err: any) {
       setMessage(err.message || "PriceCharting lookup failed.");
     }
@@ -604,25 +677,51 @@ export default function CollectionManagementPage({ params }: { params: { id: str
   }
 
   function useMetadata(result: MetadataResult) {
-    if (!isGamesCollection) return;
-    setTitle(result.title || "");
-    setReleaseYear(result.releaseYear ? String(result.releaseYear) : "");
-    setDescription(result.description || "");
-    setCoverUrl(result.coverUrl || "");
-    if (result.barcode) setBarcode(result.barcode);
-    if (result.platformName) {
-      const existing = platforms.find((platform) => platform.name.toLowerCase() === result.platformName!.toLowerCase());
-      if (existing) {
-        setPlatformId(existing.id);
-        setNewPlatformName("");
-      } else {
-        setPlatformId("");
-        setNewPlatformName(result.platformName);
+    const isPriceChartingResult = result.provider === "PriceCharting" || !!result.priceChartingProductId;
+
+    if (isGamesCollection) {
+      setTitle(result.title || "");
+      setReleaseYear(result.releaseYear ? String(result.releaseYear) : "");
+      setDescription(isPriceChartingResult ? "" : result.description || "");
+      setCoverUrl(result.coverUrl || "");
+      if (result.barcode) setBarcode(result.barcode);
+      if (result.platformName) {
+        const existing = platforms.find((platform) => platform.name.toLowerCase() === result.platformName!.toLowerCase());
+        if (existing) {
+          setPlatformId(existing.id);
+          setNewPlatformName("");
+        } else {
+          setPlatformId("");
+          setNewPlatformName(result.platformName);
+        }
       }
+      if (result.priceChartingProductId) {
+        setPriceChartingProductId(result.priceChartingProductId);
+        setPriceChartingProductName(result.priceChartingProductName || result.title || "");
+        setPriceChartingConsoleName(result.priceChartingConsoleName || result.platformName || "");
+        setPriceChartingMatches([]);
+        setSelectedPriceChartingProduct(null);
+      }
+      setShowGameModal(true);
+      checkDuplicates({ title: result.title, platformName: result.platformName || "", barcode: result.barcode || barcode, format });
+    } else {
+      setItemName(result.title || "");
+      setItemReleaseYear(result.releaseYear ? String(result.releaseYear) : "");
+      setItemDescription(isPriceChartingResult ? "" : result.description || "");
+      setItemImageUrl(result.coverUrl || "");
+      if (result.barcode) setItemBarcode(result.barcode);
+      if (result.platformName) setItemPlatform(result.platformName);
+      if (result.priceChartingProductId) {
+        setPriceChartingProductId(result.priceChartingProductId);
+        setPriceChartingProductName(result.priceChartingProductName || result.title || "");
+        setPriceChartingConsoleName(result.priceChartingConsoleName || result.platformName || "");
+        setPriceChartingMatches([]);
+        setSelectedPriceChartingProduct(null);
+      }
+      setShowItemModal(true);
+      checkDuplicates({ itemName: result.title, platformName: result.platformName || "", barcode: result.barcode || itemBarcode });
     }
-    setShowGameModal(true);
-    checkDuplicates({ title: result.title, platformName: result.platformName || "", barcode: result.barcode || barcode, format });
-    setMessage(`Loaded metadata from ${result.provider}. Review before saving.`);
+    setMessage(`Loaded ${result.provider} result. Review before saving.${result.priceChartingProductId ? " PriceCharting match selected for value autofill." : ""}`);
   }
 
   async function startBarcodeScanner() {
@@ -650,7 +749,7 @@ export default function CollectionManagementPage({ params }: { params: { id: str
             setBarcode(raw);
             setItemBarcode(raw);
             stopBarcodeScanner();
-            if (isGamesCollection) await lookupBarcode(raw);
+            await lookupBarcode(raw);
             return;
           }
         } catch {}
@@ -781,10 +880,16 @@ export default function CollectionManagementPage({ params }: { params: { id: str
         serialNumber: itemSerialNumber || null,
         barcode: itemBarcode || null,
         condition: itemCondition,
+        releaseYear: itemReleaseYear ? Number(itemReleaseYear) : null,
+        description: itemDescription || null,
+        priceChartingProductId: priceChartingProductId || null,
+        priceChartingProductName: priceChartingProductName || null,
+        priceChartingConsoleName: priceChartingConsoleName || null,
         purchasePrice: itemPricePaid ? Number(itemPricePaid) : null,
         estimatedValue: itemCurrentValue ? Number(itemCurrentValue) : null,
         imageUrl: itemImageUrl || null,
-        notes: itemNotes || null
+        notes: itemNotes || null,
+        parts: selectedPartsPayload()
       };
 
       if (editingItemId) {
@@ -842,10 +947,26 @@ export default function CollectionManagementPage({ params }: { params: { id: str
     setItemSerialNumber(item.serialNumber || "");
     setItemBarcode(item.barcode || "");
     setItemCondition(item.condition as ConditionGrade);
+    setItemReleaseYear(item.releaseYear ? String(item.releaseYear) : "");
+    setItemDescription(item.description || "");
     setItemPricePaid(item.purchasePrice ? String(item.purchasePrice) : "");
     setItemCurrentValue(item.estimatedValue ? String(item.estimatedValue) : "");
     setItemImageUrl(item.imageUrl || "");
     setItemNotes(item.notes || "");
+    setPriceChartingProductId(item.priceChartingProductId || "");
+    setPriceChartingProductName(item.priceChartingProductName || "");
+    setPriceChartingConsoleName(item.priceChartingConsoleName || "");
+    setPriceChartingMatches([]);
+    setFormat("PHYSICAL");
+    const nextParts = defaultPartDrafts();
+    for (const existingPart of item.parts || []) {
+      const normalizedType = existingPart.type === "CASE" ? "BOX" : existingPart.type;
+      const index = nextParts.findIndex((part) => part.type === normalizedType);
+      if (index >= 0) {
+        nextParts[index] = { type: normalizedType as GamePartType, enabled: true, condition: existingPart.condition as ConditionGrade, notes: existingPart.notes || "" };
+      }
+    }
+    setPartDrafts(nextParts);
     setShowItemModal(true);
   }
 
@@ -1064,7 +1185,7 @@ export default function CollectionManagementPage({ params }: { params: { id: str
               <div className="space-y-3">
                 <Input placeholder="UPC/EAN barcode" value={isGamesCollection ? barcode : itemBarcode} onChange={(e) => { setBarcode(e.target.value); setItemBarcode(e.target.value); }} />
                 <div className="grid grid-cols-2 gap-2">
-                  {isGamesCollection && <Button type="button" onClick={() => lookupBarcode()} disabled={isSearching}>Lookup barcode</Button>}
+                  <Button type="button" onClick={() => lookupBarcode(isGamesCollection ? barcode : itemBarcode)} disabled={isSearching}>Lookup barcode</Button>
                   <Button type="button" onClick={isScanning ? stopBarcodeScanner : startBarcodeScanner}>{isScanning ? "Stop scanner" : "Scan barcode"}</Button>
                 </div>
                 {isScanning && <video ref={videoRef} className="aspect-video w-full rounded-xl bg-black" muted playsInline />}
@@ -1073,14 +1194,14 @@ export default function CollectionManagementPage({ params }: { params: { id: str
             ) : <p className="rounded-lg bg-zinc-800 p-3 text-sm text-zinc-300">You have viewer access.</p>}
           </MobileCollapsibleCard>
 
-          {isGamesCollection && (
-            <MobileCollapsibleCard title="Search Game Metadata" icon={<Search className="h-5 w-5 vgc-accent-text" />}>
+          {collection && (
+            <MobileCollapsibleCard title={isGamesCollection ? "Search Game Metadata" : `Search ${itemNoun(collection.type)} Metadata`} icon={<Search className="h-5 w-5 vgc-accent-text" />}>
               {canEdit ? (
                 <>
                   <form onSubmit={searchMetadata} className="space-y-3">
-                    <Input placeholder="Search game metadata" value={metadataQuery} onChange={(e) => setMetadataQuery(e.target.value)} />
+                    <Input placeholder={isGamesCollection ? "Search game metadata" : `Search ${itemNoun(collection.type).toLowerCase()} metadata`} value={metadataQuery} onChange={(e) => setMetadataQuery(e.target.value)} />
                     <select className="vgc-select" style={{ colorScheme: "light" }} value={metadataProvider} onChange={(e) => setMetadataProvider(e.target.value)}>
-                      <option value="all">All configured providers</option><option value="rawg">RAWG</option><option value="igdb">IGDB</option><option value="giantbomb">GiantBomb</option><option value="mobygames">MobyGames</option><option value="steam">Steam</option><option value="custom">Custom</option>
+                      <option value="all">All configured providers</option><option value="pricecharting">PriceCharting</option><option value="rawg">RAWG</option><option value="igdb">IGDB</option><option value="giantbomb">GiantBomb</option><option value="mobygames">MobyGames</option><option value="steam">Steam</option><option value="custom">Custom</option>
                     </select>
                     <Button type="submit" className="w-full" disabled={isSearching}>{isSearching ? "Searching..." : "Search metadata"}</Button>
                   </form>
@@ -1219,9 +1340,11 @@ export default function CollectionManagementPage({ params }: { params: { id: str
                   const delta = deltaLabel(item.estimatedValue, item.purchasePrice);
                   return (
                     <div key={item.id} className="vgc-surface rounded-2xl border border-zinc-800 bg-zinc-950 p-4 shadow-sm">
-                      <div className="flex items-start gap-3">{item.imageUrl ? <img src={item.imageUrl} alt="" className="h-20 w-20 rounded object-cover" /> : collectionIcon(collection?.type)}<div><h4 className="font-semibold">{item.name}</h4><p className="vgc-muted text-sm text-zinc-400">{itemNoun(collection?.type)} · {conditionLabel(item.condition)}</p>{item.platform && <p className="vgc-muted text-xs text-zinc-400">{item.platform}</p>}</div></div>
+                      <div className="flex items-start gap-3">{item.imageUrl ? <img src={item.imageUrl} alt="" className="h-20 w-20 rounded object-cover" /> : collectionIcon(collection?.type)}<div><h4 className="font-semibold">{item.name}</h4><p className="vgc-muted text-sm text-zinc-400">{itemNoun(collection?.type)} · {conditionLabel(item.condition)}</p>{item.platform && <p className="vgc-muted text-xs text-zinc-400">{item.platform}</p>}{item.releaseYear && <p className="vgc-muted text-xs text-zinc-400">{item.releaseYear}</p>}</div></div>
+                      {item.description && <p className="vgc-muted mt-3 line-clamp-3 text-sm text-zinc-400">{item.description}</p>}
                       <div className="vgc-muted mt-3 space-y-1 text-sm text-zinc-400">{item.maker && <p>Maker: {item.maker}</p>}{item.modelNumber && <p>Model: {item.modelNumber}</p>}{item.serialNumber && <p>Serial: {item.serialNumber}</p>}{item.barcode && <p>Barcode: {item.barcode}</p>}</div>
                       <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 text-sm"><p>Price Paid: {item.purchasePrice ? money(item.purchasePrice) : "—"}</p><p>Current Value: {item.estimatedValue ? money(item.estimatedValue) : "—"}</p>{delta && <p className={delta.className}>Change: {delta.text}</p>}</div>
+                      <div className="mt-3 flex flex-wrap gap-2">{(item.parts || []).map((part) => <span key={part.id} title={part.notes || ""} className="rounded-full bg-zinc-800 px-2 py-1 text-xs">{partLabel(part.type)}: {conditionLabel(part.condition)}</span>)}{(!item.parts || item.parts.length === 0) && <span className="rounded-full bg-zinc-800 px-2 py-1 text-xs text-zinc-400">No parts tracked</span>}</div>
                       {item.notes && <p className="vgc-muted mt-2 text-sm text-zinc-400">{item.notes}</p>}
                       {collection?.type && <AssetPanel assetTag={item.assetTag} collectionItemId={item.id} collectionType={collection.type} canEdit={canEdit} user={user} branding={branding} onChanged={load} />}
                       {canEdit && (
@@ -1299,6 +1422,9 @@ export default function CollectionManagementPage({ params }: { params: { id: str
         <Modal title={editingItemId ? `Edit ${itemNoun(collection?.type)}` : `Add ${itemNoun(collection?.type)}`} onClose={() => { setShowItemModal(false); resetItemForm(); }}>
           <form onSubmit={saveItem} className="space-y-3">
             <Input placeholder={`${itemNoun(collection?.type)} name`} value={itemName} onChange={(e) => setItemName(e.target.value)} />
+            <Input placeholder="Release year" value={itemReleaseYear} onChange={(e) => setItemReleaseYear(e.target.value)} />
+            <Input placeholder="Image URL" value={itemImageUrl} onChange={(e) => setItemImageUrl(e.target.value)} />
+            <textarea className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 outline-none ring-indigo-500 focus:ring-2" placeholder="Description" value={itemDescription} onChange={(e) => setItemDescription(e.target.value)} rows={4} />
             <Input placeholder="Maker, e.g. Nintendo, Sony, Microsoft, PDP" value={itemMaker} onChange={(e) => setItemMaker(e.target.value)} />
             <Input placeholder="Platform, e.g. Nintendo Switch, PS5, Xbox Series X" value={itemPlatform} onChange={(e) => setItemPlatform(e.target.value)} />
             <Input placeholder="Model number" value={itemModelNumber} onChange={(e) => setItemModelNumber(e.target.value)} />
@@ -1306,7 +1432,38 @@ export default function CollectionManagementPage({ params }: { params: { id: str
             <Input placeholder="Barcode" value={itemBarcode} onChange={(e) => setItemBarcode(e.target.value)} />
             <select className="vgc-select" style={{ colorScheme: "light" }} value={itemCondition} onChange={(e) => setItemCondition(e.target.value as ConditionGrade)}>{conditionOptions.map((condition) => <option key={condition.value} value={condition.value}>{condition.label}</option>)}</select>
             <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]"><Input placeholder="Price Paid" value={itemPricePaid} onChange={(e) => setItemPricePaid(e.target.value)} /><Input placeholder="Current Value" value={itemCurrentValue} onChange={(e) => setItemCurrentValue(e.target.value)} /><Button type="button" onClick={lookupPriceChartingForItem}>Autofill</Button></div>
-            <Input placeholder="Image URL" value={itemImageUrl} onChange={(e) => setItemImageUrl(e.target.value)} />
+
+            <div className="rounded-xl border border-blue-900/60 bg-blue-950/20 p-3 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="font-semibold text-blue-100">PriceCharting product match</div>
+                  <p className="mt-1 text-xs text-zinc-400">Match the exact PriceCharting product, then use Autofill to update the value for the selected physical parts.</p>
+                  <p className="mt-2 text-xs text-amber-200">For systems, peripherals, and amiibo, search by exact product name, platform, or barcode.</p>
+                </div>
+                <Button type="button" onClick={searchPriceChartingProducts} disabled={isPriceChartingSearching}>{isPriceChartingSearching ? "Searching..." : "Search PriceCharting"}</Button>
+              </div>
+              {priceChartingProductId && <div className="mt-3 rounded-lg border border-blue-800 bg-blue-950/40 p-2 text-xs text-blue-100">Selected: {priceChartingProductName || "PriceCharting product"}{priceChartingConsoleName ? ` (${priceChartingConsoleName})` : ""}</div>}
+              {priceChartingMatches.length > 0 && <div className="mt-3 space-y-2">{priceChartingMatches.map((match) => <button key={match.id} type="button" onClick={() => selectPriceChartingMatch(match)} className={`w-full rounded-xl border px-3 py-2 text-left text-sm hover:bg-blue-950 ${priceChartingProductId === match.id ? "border-blue-500 bg-blue-950/60" : "border-zinc-800 bg-zinc-950"}`}><div className="font-semibold">{match.productName} <span className="text-zinc-400">({match.consoleName})</span></div><div className="mt-1 text-xs text-zinc-400">{selectedPriceChartingProduct?.id === match.id ? <>Loose {selectedPriceChartingProduct.prices.loose ? money(selectedPriceChartingProduct.prices.loose) : "—"} · CIB {selectedPriceChartingProduct.prices.cib ? money(selectedPriceChartingProduct.prices.cib) : "—"} · New {selectedPriceChartingProduct.prices.new ? money(selectedPriceChartingProduct.prices.new) : "—"} · Box {selectedPriceChartingProduct.prices.box ? money(selectedPriceChartingProduct.prices.box) : "—"} · Manual {selectedPriceChartingProduct.prices.manual ? money(selectedPriceChartingProduct.prices.manual) : "—"}</> : "Select this product to load condition prices"}</div></button>)}</div>}
+            </div>
+
+            <div className="rounded-xl border border-blue-900/60 bg-blue-950/20 p-3 text-sm">
+              <div className="font-semibold text-blue-100">PriceCharting condition: {priceChartingConditionLabel()}</div>
+              <p className="mt-1 text-xs text-zinc-400">Autofill uses the selected parts below. Loose/game only, complete in box, box only, manual only, and new/sealed are matched the same way game copies are.</p>
+            </div>
+
+            <div className="rounded-xl border border-zinc-800 p-4">
+              <h3 className="mb-1 font-semibold">Physical parts included</h3>
+              <p className="mb-3 text-xs text-zinc-400">Use this to track console boxes, manuals, inserts, amiibo packaging, cables, stands, adapters, and other included pieces.</p>
+              <div className="space-y-3">
+                {partDrafts.map((part) => (
+                  <div key={part.type} className="vgc-surface rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+                    <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={part.enabled} onChange={(e) => updatePart(part.type, { enabled: e.target.checked })} />{partLabel(part.type)}</label>
+                    {part.enabled && <div className="mt-3 grid gap-2 md:grid-cols-2"><select className="vgc-select" style={{ colorScheme: "light" }} value={part.condition} onChange={(e) => updatePart(part.type, { condition: e.target.value as ConditionGrade })}>{conditionOptions.map((condition) => <option key={condition.value} value={condition.value}>{condition.label}</option>)}</select><Input placeholder="Part notes" value={part.notes} onChange={(e) => updatePart(part.type, { notes: e.target.value })} /></div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <textarea className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 outline-none ring-indigo-500 focus:ring-2" placeholder="Notes" value={itemNotes} onChange={(e) => setItemNotes(e.target.value)} rows={4} />
             {duplicateMatches.length > 0 && !editingItemId && <div className="rounded-xl border border-amber-700 bg-amber-950/30 p-3 text-sm text-amber-100"><div className="font-semibold">Possible duplicate already in this collection</div>{duplicateMatches.slice(0, 4).map((match) => <div key={`${match.type}-${match.id}`} className="mt-1">{match.title}{match.platform ? ` · ${match.platform}` : ""}{match.assetTag?.tag ? ` · ${match.assetTag.tag}` : ""} <span className="text-amber-300">({match.reason})</span></div>)}</div>}
             <div className="grid grid-cols-2 gap-2"><Button type="submit">{editingItemId ? "Save changes" : `Add ${itemNoun(collection?.type)}`}</Button><Button type="button" onClick={() => { setShowItemModal(false); resetItemForm(); }}>Cancel</Button></div>
