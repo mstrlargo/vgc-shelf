@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>VGC-shelf</Name>
+  <Repository>ghcr.io/mstrlargo/vgc-shelf:latest</Repository>
+  <Registry/>
+  <Network>bridge</Network>
+  <MyIP/>
+  <MyMAC/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support/>
+  <Project/>
+  <ReadMe/>
+  <Overview>VGC Shelf (Video Game Collection Shelf) is a self-hosted, open-source video game collection manager designed by collectors, for collectors.&#13;
+&#13;
+Track physical and digital games, systems, peripherals, and collectibles from a central location that you control. No subscriptions, no vendor lock-in, and no dependence on a third-party service to access your collection.</Overview>
+  <Category/>
+  <WebUI>http://[IP]:[PORT]</WebUI>
+  <TemplateURL/>
+  <Icon>https://github.com/mstrlargo/vgc-shelf/blob/main/icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled>1782430616</DateInstalled>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="WebUI" Target="3000" Default="3000" Mode="tcp" Description="" Type="Port" Display="always" Required="false" Mask="false">3000</Config>
+  <Config Name="Postgres Database" Target="DATABASE_URL" Default="" Mode="" Description="" Type="Variable" Display="always" Required="false" Mask="false">postgresql://USERNAME:PASSWORD@SERVER:5432/DATABASE?schema=public</Config>
+  <Config Name="Uploads" Target="/app/uploads" Default="" Mode="rw" Description="" Type="Path" Display="always" Required="false" Mask="false">/mnt/user/appdata/vgc-shelf/uploads/</Config>
+  <Config Name="Data" Target="/app/data" Default="" Mode="rw" Description="" Type="Path" Display="always" Required="false" Mask="false">/mnt/user/appdata/vgc-shelf/data</Config>
+  <TailscaleStateDir/>
+</Container>
