@@ -126,7 +126,7 @@ My goal is to grow VGC Shelf into a community-driven project that continues impr
 ## Clone the Repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/vgc-shelf.git
+git clone https://github.com/mstrlargo/vgc-shelf.git
 cd vgc-shelf
 ```
 
