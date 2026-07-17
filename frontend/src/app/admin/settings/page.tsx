@@ -30,10 +30,31 @@ type AdminBranding = {
   labelText?: string | null;
 };
 
+type SmtpSettings = {
+  host: string | null;
+  port: number;
+  secure: boolean;
+  user: string | null;
+  password: string | null;
+  from: string | null;
+  configured: boolean;
+};
+
+type LendingReminderSettings = {
+  enabled: boolean;
+  timing: "BEFORE_DUE" | "ON_DUE" | "AFTER_DUE";
+  days: number;
+  repeatDays: number;
+  subject: string;
+  message: string;
+};
+
 type Settings = {
   allowPublicSignup: boolean;
   branding: AdminBranding;
   apiKeys: ApiKeys;
+  smtp: SmtpSettings;
+  lendingReminders: LendingReminderSettings;
 };
 
 type AdminUser = {
@@ -95,6 +116,22 @@ export default function AdminSettingsPage() {
     assetTagPrefix: "VGC",
     labelText: ""
   });
+  const [smtpDraft, setSmtpDraft] = useState({
+    host: "",
+    port: "587",
+    secure: false,
+    user: "",
+    password: "",
+    from: ""
+  });
+  const [reminderDraft, setReminderDraft] = useState({
+    enabled: true,
+    timing: "AFTER_DUE" as "BEFORE_DUE" | "ON_DUE" | "AFTER_DUE",
+    days: "0",
+    repeatDays: "1",
+    subject: "Reminder: {{title}} is due {{dueDate}}",
+    message: "Hello {{borrowerName}},\n\nThis is a reminder that {{title}} ({{assetTag}}) from {{collectionName}} is due {{dueDate}}.\n\nPlease arrange to return it.\n\nThank you."
+  });
 
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -117,6 +154,22 @@ export default function AdminSettingsPage() {
       appIconUrl: settingsData.settings.branding.appIconUrl || "",
       assetTagPrefix: settingsData.settings.branding.assetTagPrefix || "VGC",
       labelText: settingsData.settings.branding.labelText || ""
+    });
+    setSmtpDraft({
+      host: settingsData.settings.smtp?.host || "",
+      port: String(settingsData.settings.smtp?.port || 587),
+      secure: Boolean(settingsData.settings.smtp?.secure),
+      user: settingsData.settings.smtp?.user || "",
+      password: "",
+      from: settingsData.settings.smtp?.from || ""
+    });
+    setReminderDraft({
+      enabled: settingsData.settings.lendingReminders?.enabled ?? true,
+      timing: settingsData.settings.lendingReminders?.timing || "AFTER_DUE",
+      days: String(settingsData.settings.lendingReminders?.days ?? 0),
+      repeatDays: String(settingsData.settings.lendingReminders?.repeatDays ?? 1),
+      subject: settingsData.settings.lendingReminders?.subject || "Reminder: {{title}} is due {{dueDate}}",
+      message: settingsData.settings.lendingReminders?.message || "Hello {{borrowerName}},\n\nThis is a reminder that {{title}} ({{assetTag}}) from {{collectionName}} is due {{dueDate}}.\n\nPlease arrange to return it.\n\nThank you."
     });
   }
 
@@ -235,6 +288,92 @@ export default function AdminSettingsPage() {
       setMessage("Stored API key cleared.");
     } catch (err: any) {
       setMessage(err.message || "Failed to clear API key.");
+    }
+  }
+
+  async function saveSmtp(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage("");
+
+    const port = Number(smtpDraft.port);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      setMessage("SMTP port must be between 1 and 65535.");
+      return;
+    }
+
+    const smtp: Record<string, string | number | boolean | null> = {
+      host: smtpDraft.host.trim() || null,
+      port,
+      secure: smtpDraft.secure,
+      user: smtpDraft.user.trim() || null,
+      from: smtpDraft.from.trim() || null
+    };
+    if (smtpDraft.password.length > 0) smtp.password = smtpDraft.password;
+
+    try {
+      const data = await api<{ settings: Settings }>("/admin/settings", {
+        method: "PATCH",
+        body: JSON.stringify({ smtp })
+      });
+      setSettings(data.settings);
+      setSmtpDraft((prev) => ({ ...prev, password: "" }));
+      setMessage(data.settings.smtp.configured ? "SMTP settings saved. Lending email reminders are enabled." : "SMTP settings saved, but host and From address are required to enable reminders.");
+    } catch (err: any) {
+      setMessage(err.message || "Failed to save SMTP settings.");
+    }
+  }
+
+  async function clearSmtpPassword() {
+    try {
+      const data = await api<{ settings: Settings }>("/admin/settings", {
+        method: "PATCH",
+        body: JSON.stringify({ smtp: { password: null } })
+      });
+      setSettings(data.settings);
+      setSmtpDraft((prev) => ({ ...prev, password: "" }));
+      setMessage("Stored SMTP password cleared.");
+    } catch (err: any) {
+      setMessage(err.message || "Failed to clear SMTP password.");
+    }
+  }
+
+  async function saveLendingReminders(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage("");
+
+    const days = Number(reminderDraft.days);
+    const repeatDays = Number(reminderDraft.repeatDays);
+    if (!Number.isInteger(days) || days < 0 || days > 365) {
+      setMessage("Reminder timing must be between 0 and 365 days.");
+      return;
+    }
+    if (!Number.isInteger(repeatDays) || repeatDays < 0 || repeatDays > 365) {
+      setMessage("Repeat interval must be between 0 and 365 days.");
+      return;
+    }
+    if (!reminderDraft.subject.trim() || !reminderDraft.message.trim()) {
+      setMessage("Reminder subject and message cannot be blank.");
+      return;
+    }
+
+    try {
+      const data = await api<{ settings: Settings }>("/admin/settings", {
+        method: "PATCH",
+        body: JSON.stringify({
+          lendingReminders: {
+            enabled: reminderDraft.enabled,
+            timing: reminderDraft.timing,
+            days,
+            repeatDays,
+            subject: reminderDraft.subject,
+            message: reminderDraft.message
+          }
+        })
+      });
+      setSettings(data.settings);
+      setMessage("Lending reminder settings saved.");
+    } catch (err: any) {
+      setMessage(err.message || "Failed to save lending reminder settings.");
     }
   }
 
@@ -568,6 +707,114 @@ export default function AdminSettingsPage() {
               <div className="md:col-span-2">
                 <Button type="submit">Save API settings</Button>
               </div>
+            </form>
+          </Card>
+
+
+          <Card>
+            <h2 className="text-xl font-bold">SMTP Email</h2>
+            <p className="vgc-muted mt-1 text-sm text-zinc-400">
+              Used for lending reminders. Automatic overdue checks run every six hours.
+            </p>
+
+            <form onSubmit={saveSmtp} className="mt-5 space-y-4">
+              <div className="rounded-xl border border-zinc-800 p-3 text-sm">
+                Status: <span className={settings?.smtp?.configured ? "text-green-300" : "text-amber-300"}>
+                  {settings?.smtp?.configured ? "Configured" : "Not configured"}
+                </span>
+              </div>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">SMTP Host</span>
+                <Input placeholder="smtp.example.com" value={smtpDraft.host} onChange={(e) => setSmtpDraft((prev) => ({ ...prev, host: e.target.value }))} />
+              </label>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium">Port</span>
+                  <Input type="number" min={1} max={65535} value={smtpDraft.port} onChange={(e) => setSmtpDraft((prev) => ({ ...prev, port: e.target.value }))} />
+                </label>
+
+                <label className="flex items-center gap-2 pt-7 text-sm">
+                  <input type="checkbox" checked={smtpDraft.secure} onChange={(e) => setSmtpDraft((prev) => ({ ...prev, secure: e.target.checked }))} />
+                  Use implicit TLS/SSL
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Username</span>
+                <Input placeholder="Optional" value={smtpDraft.user} onChange={(e) => setSmtpDraft((prev) => ({ ...prev, user: e.target.value }))} />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Password</span>
+                <div className="vgc-muted mb-2 text-xs text-zinc-400">Stored: {settings?.smtp?.password || "Not set"}</div>
+                <Input type="password" placeholder="Leave blank to keep current password" value={smtpDraft.password} onChange={(e) => setSmtpDraft((prev) => ({ ...prev, password: e.target.value }))} />
+                {settings?.smtp?.password && (
+                  <button type="button" onClick={clearSmtpPassword} className="mt-2 text-xs text-red-300 hover:text-red-200">Clear stored password</button>
+                )}
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">From Address</span>
+                <Input placeholder="VGC Shelf <vgc-shelf@example.com>" value={smtpDraft.from} onChange={(e) => setSmtpDraft((prev) => ({ ...prev, from: e.target.value }))} />
+              </label>
+
+              <p className="vgc-muted text-xs text-zinc-400">Use port 465 with implicit TLS. For port 587, leave implicit TLS off so STARTTLS can be negotiated.</p>
+              <Button type="submit">Save SMTP settings</Button>
+            </form>
+          </Card>
+
+          <Card>
+            <h2 className="text-xl font-bold">Lending Reminders</h2>
+            <p className="vgc-muted mt-1 text-sm text-zinc-400">
+              Control automatic reminder timing and customize the plain-text email sent to borrowers. Manual reminders use the same template.
+            </p>
+
+            <form onSubmit={saveLendingReminders} className="mt-5 space-y-4">
+              <label className="flex items-center gap-3 rounded-xl border border-zinc-800 p-3 text-sm">
+                <input type="checkbox" checked={reminderDraft.enabled} onChange={(e) => setReminderDraft((prev) => ({ ...prev, enabled: e.target.checked }))} />
+                Send automatic lending reminders
+              </label>
+
+              <div className="grid gap-4 sm:grid-cols-[1fr_120px]">
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium">First reminder</span>
+                  <select className="vgc-select w-full" value={reminderDraft.timing} onChange={(e) => setReminderDraft((prev) => ({ ...prev, timing: e.target.value as "BEFORE_DUE" | "ON_DUE" | "AFTER_DUE" }))}>
+                    <option value="BEFORE_DUE">Before the due date</option>
+                    <option value="ON_DUE">On the due date</option>
+                    <option value="AFTER_DUE">After the due date</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium">Days</span>
+                  <Input type="number" min={0} max={365} value={reminderDraft.days} disabled={reminderDraft.timing === "ON_DUE"} onChange={(e) => setReminderDraft((prev) => ({ ...prev, days: e.target.value }))} />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Repeat every</span>
+                <div className="grid grid-cols-[120px_1fr] items-center gap-3">
+                  <Input type="number" min={0} max={365} value={reminderDraft.repeatDays} onChange={(e) => setReminderDraft((prev) => ({ ...prev, repeatDays: e.target.value }))} />
+                  <span className="vgc-muted text-sm text-zinc-400">days after the previous reminder. Use 0 to send only once.</span>
+                </div>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Email subject</span>
+                <Input value={reminderDraft.subject} onChange={(e) => setReminderDraft((prev) => ({ ...prev, subject: e.target.value }))} />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Email message</span>
+                <textarea className="vgc-input min-h-56 w-full resize-y rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm" value={reminderDraft.message} onChange={(e) => setReminderDraft((prev) => ({ ...prev, message: e.target.value }))} />
+              </label>
+
+              <div className="rounded-xl border border-zinc-800 p-3 text-xs text-zinc-400">
+                Available placeholders: <code>{"{{borrowerName}}"}</code>, <code>{"{{borrowerEmail}}"}</code>, <code>{"{{title}}"}</code>, <code>{"{{assetTag}}"}</code>, <code>{"{{collectionName}}"}</code>, <code>{"{{dueDate}}"}</code>, and <code>{"{{checkoutDate}}"}</code>.
+              </div>
+
+              <Button type="submit">Save reminder settings</Button>
             </form>
           </Card>
 

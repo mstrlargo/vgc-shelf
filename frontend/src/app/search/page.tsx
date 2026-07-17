@@ -15,6 +15,7 @@ type SearchResult = {
   url: string;
   assetTag?: string | null;
   status: string;
+  matchedBy?: string[];
 };
 
 function getInitialQuery() {
@@ -91,7 +92,7 @@ export default function SearchPage() {
           <div>
             <h2 className="text-xl font-bold">Search</h2>
             <p className="vgc-muted text-sm text-zinc-400">
-              Search games, platforms, asset tags, barcodes, serial numbers, systems, peripherals, toys-to-life, and collections.
+              Search games, collections, exact or partial asset tags, barcodes, serial numbers, and borrower names or email addresses.
             </p>
           </div>
         </div>
@@ -133,6 +134,15 @@ export default function SearchPage() {
                   <div className="text-xs uppercase tracking-wide text-zinc-500">{typeLabel(result.type)}</div>
                   <h3 className="font-semibold">{result.title}</h3>
                   <p className="vgc-muted text-sm text-zinc-400">{result.subtitle}</p>
+                  {result.matchedBy && result.matchedBy.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {result.matchedBy.map((match) => (
+                        <span key={match} className="rounded-full border border-zinc-700 px-2 py-0.5 text-[11px] text-zinc-400">
+                          Matched {match.toLowerCase()}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="text-left md:text-right">

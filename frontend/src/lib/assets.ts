@@ -6,6 +6,8 @@ export type AssetTag = {
   gameCopyId?: string | null;
   collectionItemId?: string | null;
   notes?: string | null;
+  labelStatus?: "NORMAL" | "MISSING" | "DAMAGED";
+  labelLastPrintedAt?: string | null;
   gameCopy?: GameCopy & {
     collection?: {
       id: string;

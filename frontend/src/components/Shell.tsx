@@ -23,7 +23,8 @@ import {
   Search,
   Settings,
   ShieldCheck,
-  Tag
+  Tag,
+  Clock3
 } from "lucide-react";
 
 type SearchResult = {
@@ -34,6 +35,7 @@ type SearchResult = {
   url: string;
   assetTag?: string | null;
   status: string;
+  matchedBy?: string[];
 };
 
 function typeLabel(type: string) {
@@ -222,7 +224,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                       setSearchOpen(true);
                     }
                   }}
-                  placeholder="Search games, tags, barcodes..."
+                  placeholder="Search tags, barcodes, borrowers..."
                   className="w-full min-h-11 rounded-xl border border-zinc-700 bg-zinc-950 px-10 py-3 text-base outline-none placeholder:text-zinc-500 focus:ring-2 focus:ring-indigo-500 sm:text-sm"
                 />
 
@@ -260,6 +262,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
                                 <div className="truncate text-xs text-zinc-400">
                                   {result.subtitle}
                                 </div>
+                                {result.matchedBy && result.matchedBy.length > 0 && (
+                                  <div className="mt-1 truncate text-[10px] uppercase tracking-wide text-zinc-600">
+                                    Matched {result.matchedBy.join(", ")}
+                                  </div>
+                                )}
                               </div>
 
                               <div className="shrink-0 text-right">
@@ -338,6 +345,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
               <span className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" />
                 Reports
+              </span>
+            </a>
+
+            <a
+              href="/lending"
+              className="inline-flex min-h-10 shrink-0 items-center rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
+            >
+              <span className="flex items-center gap-2">
+                <Clock3 className="h-4 w-4" />
+                Lending
               </span>
             </a>
 

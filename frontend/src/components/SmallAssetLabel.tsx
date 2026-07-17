@@ -23,29 +23,45 @@ function labelTextFor(branding: Branding) {
   return branding.labelText?.trim() || branding.appName?.trim() || "VGC Shelf";
 }
 
-export function printAssetLabel({
-  assetTag,
-  user,
-  branding
-}: {
-  assetTag: AssetTagLite;
-  user: User | null;
-  branding: Branding;
-}) {
-  if (typeof window === "undefined") return;
-
-  const printWindow = window.open("", "_blank", "width=420,height=320");
-
-  if (!printWindow) {
-    window.print();
-    return;
-  }
-
+function labelMarkup(assetTag: AssetTagLite, user: User | null, branding: Branding) {
   const appName = escapeHtml(labelTextFor(branding));
   const tag = escapeHtml(assetTag.tag);
   const ownerName = escapeHtml(user?.name || user?.email || "Owner");
   const ownerEmail = escapeHtml(user?.email || "");
   const qrUrl = qrUrlForTag(assetTag.tag);
+
+  return `
+    <div class="label">
+      <img class="qr" src="${qrUrl}" alt="QR code" />
+      <div class="text">
+        <div class="app">${appName}</div>
+        <div class="tag">${tag}</div>
+        <div class="owner">${ownerName}</div>
+        <div class="email">${ownerEmail}</div>
+      </div>
+    </div>
+  `;
+}
+
+export function printAssetLabels({
+  assetTags,
+  user,
+  branding
+}: {
+  assetTags: AssetTagLite[];
+  user: User | null;
+  branding: Branding;
+}) {
+  if (typeof window === "undefined" || assetTags.length === 0) return false;
+
+  const printWindow = window.open("", "_blank", "width=900,height=700");
+
+  if (!printWindow) {
+    window.print();
+    return false;
+  }
+
+  const title = assetTags.length === 1 ? assetTags[0].tag : `${assetTags.length} asset labels`;
 
   printWindow.document.open();
   printWindow.document.write(`
@@ -53,7 +69,7 @@ export function printAssetLabel({
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>${tag}</title>
+  <title>${escapeHtml(title)}</title>
   <style>
     @page {
       size: 2.25in 1in;
@@ -79,6 +95,13 @@ export function printAssetLabel({
       gap: 0.08in;
       overflow: hidden;
       border: 1px solid #ddd;
+      break-after: page;
+      page-break-after: always;
+    }
+
+    .label:last-child {
+      break-after: auto;
+      page-break-after: auto;
     }
 
     .qr {
@@ -128,6 +151,20 @@ export function printAssetLabel({
       text-overflow: ellipsis;
     }
 
+    @media screen {
+      body {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 16px;
+      }
+
+      .label {
+        break-after: auto;
+        page-break-after: auto;
+      }
+    }
+
     @media print {
       body {
         -webkit-print-color-adjust: exact;
@@ -137,27 +174,32 @@ export function printAssetLabel({
   </style>
 </head>
 <body>
-  <div class="label">
-    <img class="qr" src="${qrUrl}" alt="QR code" />
-    <div class="text">
-      <div class="app">${appName}</div>
-      <div class="tag">${tag}</div>
-      <div class="owner">${ownerName}</div>
-      <div class="email">${ownerEmail}</div>
-    </div>
-  </div>
+  ${assetTags.map((assetTag) => labelMarkup(assetTag, user, branding)).join("\n")}
   <script>
     window.addEventListener("load", function () {
       setTimeout(function () {
         window.focus();
         window.print();
-      }, 250);
+      }, 500);
     });
   </script>
 </body>
 </html>
   `);
   printWindow.document.close();
+  return true;
+}
+
+export function printAssetLabel({
+  assetTag,
+  user,
+  branding
+}: {
+  assetTag: AssetTagLite;
+  user: User | null;
+  branding: Branding;
+}) {
+  return printAssetLabels({ assetTags: [assetTag], user, branding });
 }
 
 export function SmallAssetLabel({

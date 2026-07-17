@@ -6,16 +6,36 @@ import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
 import { Shell } from "@/components/Shell";
-import { Archive, BarChart3, Download, Gamepad2, ImagePlus, Joystick, Package, Plus, SquarePlus, Tags } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  BarChart3,
+  Download,
+  Gamepad2,
+  GripVertical,
+  ImagePlus,
+  Joystick,
+  Package,
+  Pin,
+  PinOff,
+  Plus,
+  SquarePlus,
+  Tags
+} from "lucide-react";
 
-type CollectionSort = "name-asc" | "name-desc" | "type-asc" | "recent" | "oldest" | "items-desc";
+type CollectionSort = "manual" | "name-asc" | "name-desc" | "type-asc" | "recent" | "oldest" | "items-desc";
 
 type SortableCollection = Collection & {
   createdAt?: string;
   updatedAt?: string;
+  sortOrder?: number;
+  isPinned?: boolean;
+  isArchived?: boolean;
+  archivedAt?: string | null;
 };
 
 const collectionSortOptions: Array<{ value: CollectionSort; label: string }> = [
+  { value: "manual", label: "Manual order" },
   { value: "name-asc", label: "Name A-Z" },
   { value: "name-desc", label: "Name Z-A" },
   { value: "type-asc", label: "Type" },
@@ -30,7 +50,6 @@ const collectionTypes: Array<{ value: CollectionType; label: string; description
   { value: "PERIPHERALS", label: "Peripherals", description: "Controllers, adapters, accessories, memory cards" },
   { value: "TOYS_TO_LIFE", label: "Toys-to-life", description: "Amiibo, Skylanders, Disney Infinity, etc." }
 ];
-
 
 function readFileAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -60,7 +79,6 @@ function typeIcon(type: CollectionType) {
   if (type === "PERIPHERALS") return <Joystick className="h-5 w-5 vgc-accent-text" />;
   return <Package className="h-5 w-5 vgc-accent-text" />;
 }
-
 
 function collectionItemCount(collection: SortableCollection) {
   if (collection.type === "GAMES") return collection._count?.copies ?? 0;
@@ -92,9 +110,7 @@ function CollectionCover({ collection }: { collection: SortableCollection }) {
   return (
     <div className="aspect-[16/9] w-full rounded-xl border border-dashed border-zinc-700 bg-gradient-to-br from-zinc-900 via-zinc-950 to-zinc-900 p-4">
       <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-3">
-          {typeIcon(collection.type)}
-        </div>
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-3">{typeIcon(collection.type)}</div>
         <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">No cover image</div>
       </div>
     </div>
@@ -121,7 +137,10 @@ export default function CollectionsPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [type, setType] = useState<CollectionType>("GAMES");
-  const [sort, setSort] = useState<CollectionSort>("name-asc");
+  const [sort, setSort] = useState<CollectionSort>("manual");
+  const [showArchived, setShowArchived] = useState(false);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [savingOrder, setSavingOrder] = useState(false);
   const [message, setMessage] = useState("");
 
   async function load() {
@@ -191,17 +210,82 @@ export default function CollectionsPage() {
     }
   }
 
+  async function updateCollection(collection: SortableCollection, changes: { isPinned?: boolean; isArchived?: boolean }) {
+    setMessage("");
+
+    try {
+      await api(`/collections/${collection.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(changes)
+      });
+      await load();
+    } catch (err: any) {
+      setMessage(err.message || "Failed to update collection.");
+    }
+  }
+
+  async function saveOrder(nextCollections: SortableCollection[]) {
+    const editable = nextCollections.filter((collection) => collection.role === "OWNER" || collection.role === "EDITOR");
+    if (editable.length === 0) return;
+
+    setSavingOrder(true);
+    setMessage("");
+
+    try {
+      await api("/collections/order", {
+        method: "PATCH",
+        body: JSON.stringify({ collectionIds: editable.map((collection) => collection.id) })
+      });
+    } catch (err: any) {
+      setMessage(err.message || "Failed to save collection order.");
+      await load();
+    } finally {
+      setSavingOrder(false);
+    }
+  }
+
+  function moveCollection(targetId: string) {
+    if (!draggedId || draggedId === targetId || sort !== "manual") return;
+
+    const active = collections.filter((collection) => !collection.isArchived);
+    const dragged = active.find((collection) => collection.id === draggedId);
+    const target = active.find((collection) => collection.id === targetId);
+    if (!dragged || !target || dragged.isPinned !== target.isPinned) return;
+
+    const section = active.filter((collection) => Boolean(collection.isPinned) === Boolean(dragged.isPinned));
+    const fromIndex = section.findIndex((collection) => collection.id === draggedId);
+    const toIndex = section.findIndex((collection) => collection.id === targetId);
+    if (fromIndex < 0 || toIndex < 0) return;
+
+    const reorderedSection = [...section];
+    const [moved] = reorderedSection.splice(fromIndex, 1);
+    reorderedSection.splice(toIndex, 0, moved);
+
+    const replacement = new Map(reorderedSection.map((collection, index) => [collection.id, index]));
+    const next = collections.map((collection) =>
+      replacement.has(collection.id) ? { ...collection, sortOrder: replacement.get(collection.id)! } : collection
+    );
+
+    setCollections(next);
+    setDraggedId(null);
+    void saveOrder(reorderedSection);
+  }
+
   useEffect(() => {
     load().catch((err) => setMessage(err.message));
   }, []);
 
-  const sortedCollections = useMemo(() => {
+  const visibleCollections = useMemo(() => {
     const timeFor = (collection: SortableCollection, field: "createdAt" | "updatedAt") => {
       const rawValue = collection[field];
       return rawValue ? new Date(rawValue).getTime() : 0;
     };
 
-    return [...collections].sort((a, b) => {
+    const filtered = collections.filter((collection) => Boolean(collection.isArchived) === showArchived);
+
+    return [...filtered].sort((a, b) => {
+      if (!showArchived && a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+      if (sort === "manual") return (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name);
       if (sort === "name-asc") return a.name.localeCompare(b.name);
       if (sort === "name-desc") return b.name.localeCompare(a.name);
       if (sort === "type-asc") {
@@ -216,8 +300,113 @@ export default function CollectionsPage() {
       }
       return 0;
     });
-  }, [collections, sort]);
+  }, [collections, showArchived, sort]);
 
+  const pinnedCollections = visibleCollections.filter((collection) => !showArchived && collection.isPinned);
+  const regularCollections = visibleCollections.filter((collection) => showArchived || !collection.isPinned);
+
+  function CollectionCard({ collection }: { collection: SortableCollection }) {
+    const canEdit = collection.role === "OWNER" || collection.role === "EDITOR";
+    const draggable = canEdit && sort === "manual" && !showArchived;
+
+    return (
+      <article
+        draggable={draggable}
+        onDragStart={() => setDraggedId(collection.id)}
+        onDragEnd={() => setDraggedId(null)}
+        onDragOver={(event) => draggable && event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          moveCollection(collection.id);
+        }}
+        className={`vgc-surface rounded-xl border bg-zinc-950 p-4 hover:vgc-accent-border ${
+          draggedId === collection.id ? "border-zinc-500 opacity-60" : "border-zinc-800"
+        }`}
+      >
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs text-zinc-500">
+            {draggable && <GripVertical className="h-4 w-4 cursor-grab" />}
+            {savingOrder && sort === "manual" ? "Saving order..." : sort === "manual" ? "Drag to reorder" : ""}
+          </div>
+
+          <div className="flex items-center gap-1">
+            {!showArchived && (
+              <button
+                type="button"
+                disabled={!canEdit}
+                onClick={() => updateCollection(collection, { isPinned: !collection.isPinned })}
+                className="rounded-lg border border-zinc-800 p-2 text-zinc-400 hover:vgc-accent-border hover:vgc-accent-text disabled:cursor-not-allowed disabled:opacity-40"
+                title={collection.isPinned ? "Unpin collection" : "Pin collection"}
+              >
+                {collection.isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+              </button>
+            )}
+
+            <button
+              type="button"
+              disabled={!canEdit}
+              onClick={() => updateCollection(collection, { isArchived: !collection.isArchived })}
+              className="rounded-lg border border-zinc-800 p-2 text-zinc-400 hover:vgc-accent-border hover:vgc-accent-text disabled:cursor-not-allowed disabled:opacity-40"
+              title={collection.isArchived ? "Restore collection" : "Archive collection"}
+            >
+              {collection.isArchived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+
+        <a href={`/collections/${collection.id}`} className="block">
+          <CollectionCover collection={collection} />
+
+          <div className="mb-3 mt-3 flex items-center gap-2">
+            {typeIcon(collection.type)}
+            <span className="rounded-full bg-zinc-800 px-2 py-1 text-xs">{typeLabel(collection.type)}</span>
+            {collection.isPinned && !showArchived && (
+              <span className="rounded-full border border-zinc-700 px-2 py-1 text-xs text-zinc-300">Pinned</span>
+            )}
+            {collection.isArchived && (
+              <span className="rounded-full border border-amber-800 px-2 py-1 text-xs text-amber-300">Archived</span>
+            )}
+          </div>
+
+          <h3 className="font-semibold">{collection.name}</h3>
+          <p className="vgc-muted mt-1 line-clamp-2 min-h-10 text-sm text-zinc-400">{collection.description || "No description"}</p>
+
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-2">
+              <div className="font-semibold text-zinc-100">{itemLabel(collection)}</div>
+              <div className="vgc-muted mt-1 text-zinc-500">Tracked</div>
+            </div>
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-2">
+              <div className="font-semibold text-zinc-100">{checkedOutLabel(collection)}</div>
+              <div className="vgc-muted mt-1 text-zinc-500">Lending</div>
+            </div>
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-2">
+              <div className="font-semibold text-zinc-100">{collection._count?.members ?? 0}</div>
+              <div className="vgc-muted mt-1 text-zinc-500">Members</div>
+            </div>
+          </div>
+
+          <div className="vgc-muted mt-3 text-xs text-zinc-500">Your role: {collection.role}</div>
+        </a>
+
+        {!collection.isArchived && (
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <QuickActionLink href={`/collections/${collection.id}?action=add`} icon={<SquarePlus className="h-3.5 w-3.5" />} label="Add" />
+            <QuickActionLink href={`/assets?collectionId=${collection.id}`} icon={<Tags className="h-3.5 w-3.5" />} label="Tags" />
+            <button
+              type="button"
+              onClick={() => exportCollectionCsv(collection)}
+              className="flex items-center justify-center gap-1 rounded-lg border border-zinc-800 px-2 py-2 text-xs font-semibold text-zinc-300 hover:vgc-accent-border hover:vgc-accent-text"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>Export</span>
+            </button>
+            <QuickActionLink href={`/reports?collectionId=${collection.id}`} icon={<BarChart3 className="h-3.5 w-3.5" />} label="Reports" />
+          </div>
+        )}
+      </article>
+    );
+  }
 
   return (
     <Shell>
@@ -239,23 +428,17 @@ export default function CollectionsPage() {
               <Input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
               <Input className="mt-2" placeholder="Or paste image URL" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
               {(imageFile || imageUrl) && (
-                <p className="vgc-muted mt-2 text-xs text-zinc-400">
-                  {imageFile ? imageFile.name : "Using pasted image URL"}
-                </p>
+                <p className="vgc-muted mt-2 text-xs text-zinc-400">{imageFile ? imageFile.name : "Using pasted image URL"}</p>
               )}
             </div>
 
             <select className="vgc-select" style={{ colorScheme: "light" }} value={type} onChange={(e) => setType(e.target.value as CollectionType)}>
               {collectionTypes.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
+                <option key={item.value} value={item.value}>{item.label}</option>
               ))}
             </select>
 
-            <p className="vgc-muted text-xs text-zinc-400">
-              {collectionTypes.find((item) => item.value === type)?.description}
-            </p>
+            <p className="vgc-muted text-xs text-zinc-400">{collectionTypes.find((item) => item.value === type)?.description}</p>
 
             <Button type="submit" className="w-full" disabled={isUploading}>{isUploading ? "Uploading..." : "Create collection"}</Button>
           </form>
@@ -264,78 +447,56 @@ export default function CollectionsPage() {
         </Card>
 
         <Card className="order-1 lg:order-2">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div>
-              <h2 className="text-xl font-bold">Collections</h2>
+              <h2 className="text-xl font-bold">{showArchived ? "Archived Collections" : "Collections"}</h2>
               <p className="vgc-muted mt-1 text-sm text-zinc-400">
-                Each collection tracks one type of thing.
+                {showArchived ? "Restore archived collections when they are needed again." : "Pin important collections and drag them into your preferred order."}
               </p>
             </div>
 
-            <label className="flex flex-col gap-1 text-sm sm:min-w-44">
-              <span className="vgc-muted text-xs font-semibold uppercase tracking-wide text-zinc-500">Sort collections</span>
-              <select className="vgc-select" style={{ colorScheme: "light" }} value={sort} onChange={(e) => setSort(e.target.value as CollectionSort)}>
-                {collectionSortOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <button
+                type="button"
+                onClick={() => setShowArchived((current) => !current)}
+                className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-300 hover:vgc-accent-border hover:vgc-accent-text"
+              >
+                {showArchived ? "Show Active" : `Show Archived (${collections.filter((collection) => collection.isArchived).length})`}
+              </button>
+
+              <label className="flex flex-col gap-1 text-sm sm:min-w-44">
+                <span className="vgc-muted text-xs font-semibold uppercase tracking-wide text-zinc-500">Sort collections</span>
+                <select className="vgc-select" style={{ colorScheme: "light" }} value={sort} onChange={(e) => setSort(e.target.value as CollectionSort)}>
+                  {collectionSortOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </div>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            {sortedCollections.map((collection) => (
-              <article key={collection.id} className="vgc-surface rounded-xl border border-zinc-800 bg-zinc-950 p-4 hover:vgc-accent-border">
-                <a href={`/collections/${collection.id}`} className="block">
-                  <CollectionCover collection={collection} />
+          {!showArchived && pinnedCollections.length > 0 && (
+            <section className="mt-6">
+              <div className="mb-3 flex items-center gap-2">
+                <Pin className="h-4 w-4 vgc-accent-text" />
+                <h3 className="font-semibold">Pinned</h3>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                {pinnedCollections.map((collection) => <CollectionCard key={collection.id} collection={collection} />)}
+              </div>
+            </section>
+          )}
 
-                  <div className="mb-3 mt-3 flex items-center gap-2">
-                    {typeIcon(collection.type)}
-                    <span className="rounded-full bg-zinc-800 px-2 py-1 text-xs">{typeLabel(collection.type)}</span>
-                  </div>
+          <section className="mt-6">
+            {!showArchived && pinnedCollections.length > 0 && <h3 className="mb-3 font-semibold">Collections</h3>}
+            <div className="grid gap-4 md:grid-cols-2">
+              {regularCollections.map((collection) => <CollectionCard key={collection.id} collection={collection} />)}
+            </div>
+          </section>
 
-                  <h3 className="font-semibold">{collection.name}</h3>
-                  <p className="vgc-muted mt-1 line-clamp-2 min-h-10 text-sm text-zinc-400">{collection.description || "No description"}</p>
-
-                  <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
-                    <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-2">
-                      <div className="font-semibold text-zinc-100">{itemLabel(collection)}</div>
-                      <div className="vgc-muted mt-1 text-zinc-500">Tracked</div>
-                    </div>
-                    <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-2">
-                      <div className="font-semibold text-zinc-100">{checkedOutLabel(collection)}</div>
-                      <div className="vgc-muted mt-1 text-zinc-500">Lending</div>
-                    </div>
-                    <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-2">
-                      <div className="font-semibold text-zinc-100">{collection._count?.members ?? 0}</div>
-                      <div className="vgc-muted mt-1 text-zinc-500">Members</div>
-                    </div>
-                  </div>
-
-                  <div className="vgc-muted mt-3 text-xs text-zinc-500">Your role: {collection.role}</div>
-                </a>
-
-                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <QuickActionLink href={`/collections/${collection.id}?action=add`} icon={<SquarePlus className="h-3.5 w-3.5" />} label="Add" />
-                  <QuickActionLink href={`/assets?collectionId=${collection.id}`} icon={<Tags className="h-3.5 w-3.5" />} label="Tags" />
-                  <button
-                    type="button"
-                    onClick={() => exportCollectionCsv(collection)}
-                    className="flex items-center justify-center gap-1 rounded-lg border border-zinc-800 px-2 py-2 text-xs font-semibold text-zinc-300 hover:vgc-accent-border hover:vgc-accent-text"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    <span>Export</span>
-                  </button>
-                  <QuickActionLink href={`/reports?collectionId=${collection.id}`} icon={<BarChart3 className="h-3.5 w-3.5" />} label="Reports" />
-                </div>
-              </article>
-            ))}
-          </div>
-
-          {collections.length === 0 && (
+          {visibleCollections.length === 0 && (
             <p className="mt-5 rounded-xl border border-dashed border-zinc-700 p-8 text-center text-zinc-400">
-              No collections yet.
+              {showArchived ? "No archived collections." : "No collections yet."}
             </p>
           )}
         </Card>

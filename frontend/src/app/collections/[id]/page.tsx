@@ -8,6 +8,7 @@ import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
 import { Modal } from "@/components/Modal";
+import { MetadataSearchPanel } from "@/components/MetadataSearchPanel";
 import { Shell } from "@/components/Shell";
 import { Archive, Camera, ChevronDown, Disc3, DollarSign, Gamepad2, Joystick, Package, Search, Tag, Trash2, UserPlus, Users } from "lucide-react";
 
@@ -501,6 +502,47 @@ export default function CollectionManagementPage({ params }: { params: { id: str
     } finally {
       setIsSearching(false);
     }
+  }
+
+  async function searchMoreMetadata(queryText: string, provider: string): Promise<MetadataResult[]> {
+    const shouldSearchMetadata = provider !== "pricecharting";
+    const shouldSearchPriceCharting = provider === "all" || provider === "pricecharting";
+
+    const metadataPromise = shouldSearchMetadata
+      ? api<{ results: MetadataResult[]; errors: Array<{ provider: string; error: string }> }>(
+          `/metadata/search?q=${encodeURIComponent(queryText)}&provider=${encodeURIComponent(provider)}&expanded=true`
+        ).catch(() => ({ results: [] as MetadataResult[], errors: [] as Array<{ provider: string; error: string }> }))
+      : Promise.resolve({ results: [] as MetadataResult[], errors: [] as Array<{ provider: string; error: string }> });
+
+    const priceChartingPromise = shouldSearchPriceCharting
+      ? api<{ products: PriceChartingProductMatch[] }>(
+          `/metadata/pricecharting/products?q=${encodeURIComponent(queryText)}`
+        ).catch(() => ({ products: [] as PriceChartingProductMatch[] }))
+      : Promise.resolve({ products: [] as PriceChartingProductMatch[] });
+
+    const [metadataData, priceChartingData] = await Promise.all([metadataPromise, priceChartingPromise]);
+    const priceChartingResults: MetadataResult[] = (priceChartingData.products || []).map((product) => ({
+      provider: "PriceCharting",
+      externalId: product.id,
+      title: product.productName,
+      description: "PriceCharting product match",
+      releaseYear: null,
+      coverUrl: null,
+      platformName: product.consoleName || null,
+      sourceUrl: null,
+      barcode: null,
+      priceChartingProductId: product.id,
+      priceChartingProductName: product.productName,
+      priceChartingConsoleName: product.consoleName || null
+    }));
+
+    const seen = new Set<string>();
+    return [...metadataData.results, ...priceChartingResults].filter((result) => {
+      const key = `${result.provider}:${result.externalId}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   function priceChartingSearchQuery() {
@@ -1196,27 +1238,28 @@ export default function CollectionManagementPage({ params }: { params: { id: str
 
           {collection && (
             <MobileCollapsibleCard title={isGamesCollection ? "Search Game Metadata" : `Search ${itemNoun(collection.type)} Metadata`} icon={<Search className="h-5 w-5 vgc-accent-text" />}>
-              {canEdit ? (
-                <>
-                  <form onSubmit={searchMetadata} className="space-y-3">
-                    <Input placeholder={isGamesCollection ? "Search game metadata" : `Search ${itemNoun(collection.type).toLowerCase()} metadata`} value={metadataQuery} onChange={(e) => setMetadataQuery(e.target.value)} />
-                    <select className="vgc-select" style={{ colorScheme: "light" }} value={metadataProvider} onChange={(e) => setMetadataProvider(e.target.value)}>
-                      <option value="all">All configured providers</option><option value="pricecharting">PriceCharting</option><option value="rawg">RAWG</option><option value="igdb">IGDB</option><option value="giantbomb">GiantBomb</option><option value="mobygames">MobyGames</option><option value="steam">Steam</option><option value="custom">Custom</option>
-                    </select>
-                    <Button type="submit" className="w-full" disabled={isSearching}>{isSearching ? "Searching..." : "Search metadata"}</Button>
-                  </form>
-                  <div className="mt-4 space-y-3">
-                    {metadataResults.map((result) => (
-                      <button key={`${result.provider}-${result.externalId}`} type="button" onClick={() => useMetadata(result)} className="vgc-surface w-full rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-left hover:vgc-accent-border">
-                        <div className="flex gap-3">
-                          {result.coverUrl && <img src={result.coverUrl} alt="" className="h-16 w-12 rounded object-cover" />}
-                          <div><div className="font-semibold">{result.title}</div><div className="vgc-muted text-xs text-zinc-400">{result.provider}{result.releaseYear ? ` · ${result.releaseYear}` : ""}{result.platformName ? ` · ${result.platformName}` : ""}</div>{result.description && <p className="vgc-muted mt-1 line-clamp-2 text-xs text-zinc-400">{result.description}</p>}</div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              ) : <p className="rounded-lg bg-zinc-800 p-3 text-sm text-zinc-300">You have viewer access.</p>}
+              <MetadataSearchPanel
+                query={metadataQuery}
+                provider={metadataProvider}
+                results={metadataResults}
+                isSearching={isSearching}
+                placeholder={isGamesCollection ? "Search game metadata" : `Search ${itemNoun(collection.type).toLowerCase()} metadata`}
+                canEdit={canEdit}
+                onQueryChange={setMetadataQuery}
+                onProviderChange={setMetadataProvider}
+                onSearch={searchMetadata}
+                onSearchMore={searchMoreMetadata}
+                onSelect={useMetadata}
+                onCreateCustom={() => {
+                  if (isGamesCollection) {
+                    resetGameForm();
+                    setShowGameModal(true);
+                  } else {
+                    resetItemForm();
+                    setShowItemModal(true);
+                  }
+                }}
+              />
             </MobileCollapsibleCard>
           )}
 

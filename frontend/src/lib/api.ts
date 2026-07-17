@@ -106,6 +106,10 @@ export type Collection = {
   description?: string | null;
   type: CollectionType;
   imageUrl?: string | null;
+  sortOrder?: number;
+  isPinned?: boolean;
+  isArchived?: boolean;
+  archivedAt?: string | null;
   role?: "OWNER" | "EDITOR" | "VIEWER";
   _count?: {
     copies: number;
