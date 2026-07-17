@@ -54,13 +54,13 @@ function uniqueResults(results: MetadataResult[]) {
   return output;
 }
 
-async function searchRawg(query: string, apiKey?: string | null): Promise<MetadataResult[]> {
+async function searchRawg(query: string, apiKey?: string | null, limit = 10): Promise<MetadataResult[]> {
   if (!apiKey) return [];
 
   const url = new URL("https://api.rawg.io/api/games");
   url.searchParams.set("key", apiKey);
   url.searchParams.set("search", query);
-  url.searchParams.set("page_size", "10");
+  url.searchParams.set("page_size", String(limit));
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`RAWG search failed: ${res.status}`);
@@ -130,7 +130,8 @@ async function getIgdbAccessToken(clientId: string, clientSecret?: string | null
 async function searchIgdb(
   query: string,
   clientId?: string | null,
-  clientSecret?: string | null
+  clientSecret?: string | null,
+  limit = 10
 ): Promise<MetadataResult[]> {
   if (!clientId) return [];
 
@@ -141,7 +142,7 @@ async function searchIgdb(
   const body = `
 search "${query.replace(/"/g, '\"')}";
 fields name,summary,first_release_date,cover.url,platforms.name,url;
-limit 10;
+limit ${limit};
 `;
 
   const res = await fetch("https://api.igdb.com/v4/games", {
@@ -181,7 +182,7 @@ limit 10;
   }).filter((item: MetadataResult) => item.title);
 }
 
-async function searchGiantBomb(query: string, apiKey?: string | null): Promise<MetadataResult[]> {
+async function searchGiantBomb(query: string, apiKey?: string | null, limit = 10): Promise<MetadataResult[]> {
   if (!apiKey) return [];
 
   const url = new URL("https://www.giantbomb.com/api/search/");
@@ -189,7 +190,7 @@ async function searchGiantBomb(query: string, apiKey?: string | null): Promise<M
   url.searchParams.set("format", "json");
   url.searchParams.set("query", query);
   url.searchParams.set("resources", "game");
-  url.searchParams.set("limit", "10");
+  url.searchParams.set("limit", String(limit));
 
   const res = await fetch(url, {
     headers: { "User-Agent": "VGC-Shelf/1.0" }
@@ -211,13 +212,13 @@ async function searchGiantBomb(query: string, apiKey?: string | null): Promise<M
   })).filter((item: MetadataResult) => item.title);
 }
 
-async function searchMobyGames(query: string, apiKey?: string | null): Promise<MetadataResult[]> {
+async function searchMobyGames(query: string, apiKey?: string | null, limit = 10): Promise<MetadataResult[]> {
   if (!apiKey) return [];
 
   const url = new URL("https://api.mobygames.com/v1/games");
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("title", query);
-  url.searchParams.set("limit", "10");
+  url.searchParams.set("limit", String(limit));
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`MobyGames search failed: ${res.status}`);
@@ -237,7 +238,7 @@ async function searchMobyGames(query: string, apiKey?: string | null): Promise<M
   })).filter((item: MetadataResult) => item.title);
 }
 
-async function searchSteam(query: string): Promise<MetadataResult[]> {
+async function searchSteam(query: string, limit = 10): Promise<MetadataResult[]> {
   const url = new URL("https://store.steampowered.com/api/storesearch/");
   url.searchParams.set("term", query);
   url.searchParams.set("cc", "us");
@@ -248,7 +249,7 @@ async function searchSteam(query: string): Promise<MetadataResult[]> {
 
   const data = await res.json() as any;
 
-  return (data.items || []).slice(0, 10).map((game: any) => ({
+  return (data.items || []).slice(0, limit).map((game: any) => ({
     provider: "Steam",
     externalId: String(game.id),
     title: game.name,
@@ -260,7 +261,7 @@ async function searchSteam(query: string): Promise<MetadataResult[]> {
   })).filter((item: MetadataResult) => item.title);
 }
 
-async function searchCustom(query: string, apiUrl?: string | null, apiKey?: string | null): Promise<MetadataResult[]> {
+async function searchCustom(query: string, apiUrl?: string | null, apiKey?: string | null, limit = 10): Promise<MetadataResult[]> {
   if (!apiUrl) return [];
 
   const url = new URL(apiUrl);
@@ -279,7 +280,7 @@ async function searchCustom(query: string, apiUrl?: string | null, apiKey?: stri
   const data = await res.json() as any;
   const items = Array.isArray(data) ? data : data.results || data.games || [];
 
-  return items.map((game: any) => ({
+  return items.slice(0, limit).map((game: any) => ({
     provider: "Custom",
     externalId: String(game.id || game.externalId || game.slug || game.title || game.name),
     title: game.title || game.name,
@@ -306,6 +307,9 @@ router.get("/search", async (req, res, next) => {
     const provider = z.enum(["all", "rawg", "igdb", "giantbomb", "mobygames", "steam", "custom"])
       .default("all")
       .parse(req.query.provider || "all");
+    const expanded = req.query.expanded === "true" || req.query.expanded === "1";
+    const providerLimit = expanded ? 40 : 10;
+    const totalLimit = expanded ? 160 : 30;
 
     const settings = await getSettings();
     const errors: Array<{ provider: string; error: string }> = [];
@@ -322,21 +326,22 @@ router.get("/search", async (req, res, next) => {
       }));
     }
 
-    if (provider === "all" || provider === "rawg") addTask("RAWG", searchRawg(query, settings.rawgApiKey));
+    if (provider === "all" || provider === "rawg") addTask("RAWG", searchRawg(query, settings.rawgApiKey, providerLimit));
     if (provider === "all" || provider === "igdb") {
       addTask("IGDB", searchIgdb(
         query,
         settings.igdbClientId,
-        settings.igdbClientSecret
+        settings.igdbClientSecret,
+        providerLimit
       ));
     }
-    if (provider === "all" || provider === "giantbomb") addTask("GiantBomb", searchGiantBomb(query, settings.giantBombApiKey));
-    if (provider === "all" || provider === "mobygames") addTask("MobyGames", searchMobyGames(query, settings.mobyGamesApiKey));
-    if (provider === "all" || provider === "steam") addTask("Steam", searchSteam(query));
-    if (provider === "all" || provider === "custom") addTask("Custom", searchCustom(query, settings.customMetadataApiUrl, settings.customMetadataApiKey));
+    if (provider === "all" || provider === "giantbomb") addTask("GiantBomb", searchGiantBomb(query, settings.giantBombApiKey, providerLimit));
+    if (provider === "all" || provider === "mobygames") addTask("MobyGames", searchMobyGames(query, settings.mobyGamesApiKey, providerLimit));
+    if (provider === "all" || provider === "steam") addTask("Steam", searchSteam(query, providerLimit));
+    if (provider === "all" || provider === "custom") addTask("Custom", searchCustom(query, settings.customMetadataApiUrl, settings.customMetadataApiKey, providerLimit));
 
     const settled = await Promise.all(tasks);
-    const results = uniqueResults(settled.flat()).slice(0, 30);
+    const results = uniqueResults(settled.flat()).slice(0, totalLimit);
 
     res.json({ results, errors });
   } catch (err) {

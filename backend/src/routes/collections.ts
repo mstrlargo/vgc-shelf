@@ -37,8 +37,14 @@ router.get("/", async (req, res, next) => {
             _count: { select: { copies: true, members: true, items: true } }
           }
         }
-      },
-      orderBy: { createdAt: "desc" }
+      }
+    });
+
+    memberships.sort((a, b) => {
+      if (a.collection.isArchived !== b.collection.isArchived) return a.collection.isArchived ? 1 : -1;
+      if (a.collection.isPinned !== b.collection.isPinned) return a.collection.isPinned ? -1 : 1;
+      if (a.collection.sortOrder !== b.collection.sortOrder) return a.collection.sortOrder - b.collection.sortOrder;
+      return a.collection.name.localeCompare(b.collection.name);
     });
 
     const collectionIds = memberships.map((m) => m.collectionId);
@@ -87,12 +93,17 @@ router.post("/", async (req, res, next) => {
       type: z.nativeEnum(CollectionType).default(CollectionType.GAMES)
     }).parse(req.body);
 
+    const highestOrder = await prisma.collection.aggregate({
+      _max: { sortOrder: true }
+    });
+
     const collection = await prisma.collection.create({
       data: {
         name: body.name,
         description: body.description,
         imageUrl: cleanString(body.imageUrl),
         type: body.type,
+        sortOrder: (highestOrder._max.sortOrder ?? -1) + 1,
         members: {
           create: {
             userId: req.user!.id,
@@ -113,6 +124,41 @@ router.post("/", async (req, res, next) => {
     });
 
     res.status(201).json({ collection });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch("/order", async (req, res, next) => {
+  try {
+    const body = z.object({
+      collectionIds: z.array(z.string().min(1)).min(1)
+    }).parse(req.body);
+
+    const memberships = await prisma.collectionMember.findMany({
+      where: {
+        userId: req.user!.id,
+        collectionId: { in: body.collectionIds },
+        role: { in: [CollectionRole.OWNER, CollectionRole.EDITOR] }
+      },
+      select: { collectionId: true }
+    });
+
+    const editableIds = new Set(memberships.map((membership) => membership.collectionId));
+    if (body.collectionIds.some((id) => !editableIds.has(id))) {
+      return res.status(403).json({ error: "Editor or owner access required for every reordered collection" });
+    }
+
+    await prisma.$transaction(
+      body.collectionIds.map((id, index) =>
+        prisma.collection.update({
+          where: { id },
+          data: { sortOrder: index }
+        })
+      )
+    );
+
+    res.json({ success: true });
   } catch (err) {
     next(err);
   }
@@ -174,7 +220,9 @@ router.patch("/:id", async (req, res, next) => {
       name: z.string().min(1).optional(),
       description: z.string().nullable().optional(),
       imageUrl: z.string().nullable().optional(),
-      type: z.nativeEnum(CollectionType).optional()
+      type: z.nativeEnum(CollectionType).optional(),
+      isPinned: z.boolean().optional(),
+      isArchived: z.boolean().optional()
     }).parse(req.body);
 
     const collection = await prisma.collection.update({
@@ -183,7 +231,10 @@ router.patch("/:id", async (req, res, next) => {
         name: body.name,
         description: typeof body.description === "undefined" ? undefined : cleanString(body.description),
         imageUrl: typeof body.imageUrl === "undefined" ? undefined : cleanString(body.imageUrl),
-        type: body.type
+        type: body.type,
+        isPinned: body.isPinned,
+        isArchived: body.isArchived,
+        archivedAt: typeof body.isArchived === "undefined" ? undefined : body.isArchived ? new Date() : null
       }
     });
 

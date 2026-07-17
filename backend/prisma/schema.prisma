@@ -96,6 +96,18 @@ model AppSetting {
   steamWebApiKey       String?
   customMetadataApiUrl String?
   customMetadataApiKey String?
+  smtpHost            String?
+  smtpPort            Int      @default(587)
+  smtpSecure          Boolean  @default(false)
+  smtpUser            String?
+  smtpPass            String?
+  smtpFrom            String?
+  loanReminderEnabled    Boolean @default(true)
+  loanReminderTiming     String  @default("AFTER_DUE")
+  loanReminderDays       Int     @default(0)
+  loanReminderRepeatDays Int     @default(1)
+  loanReminderSubject    String  @default("Reminder: {{title}} is due {{dueDate}}")
+  loanReminderMessage    String  @default("Hello {{borrowerName}},\n\nThis is a reminder that {{title}} ({{assetTag}}) from {{collectionName}} is due {{dueDate}}.\n\nPlease arrange to return it.\n\nThank you.")
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 }
@@ -106,6 +118,10 @@ model Collection {
   description String?
   type        CollectionType @default(GAMES)
   imageUrl    String?
+  sortOrder   Int            @default(0)
+  isPinned    Boolean        @default(false)
+  isArchived  Boolean        @default(false)
+  archivedAt  DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -230,18 +246,28 @@ model CollectionItemPart {
   item CollectionItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
 }
 
+enum AssetLabelStatus {
+  NORMAL
+  MISSING
+  DAMAGED
+}
+
 model AssetTag {
   id               String @id @default(cuid())
   tag              String @unique
   gameCopyId       String? @unique
   collectionItemId String? @unique
   notes            String?
+  labelStatus      AssetLabelStatus @default(NORMAL)
+  labelLastPrintedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   gameCopy       GameCopy?       @relation(fields: [gameCopyId], references: [id], onDelete: Cascade)
   collectionItem CollectionItem? @relation(fields: [collectionItemId], references: [id], onDelete: Cascade)
   loans          Loan[]
+
+  @@index([labelStatus])
 }
 
 model Loan {
@@ -256,6 +282,7 @@ model Loan {
   status             LoanStatus @default(CHECKED_OUT)
   checkoutNotes      String?
   returnNotes        String?
+  reminderSentAt     DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

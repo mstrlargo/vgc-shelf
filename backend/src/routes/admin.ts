@@ -91,6 +91,23 @@ async function publicSettings(settings: Awaited<ReturnType<typeof getSettings>>)
       assetTagPrefix: raw.assetTagPrefix || "VGC",
       labelText
     },
+    smtp: {
+      host: raw.smtpHost || null,
+      port: raw.smtpPort || 587,
+      secure: Boolean(raw.smtpSecure),
+      user: raw.smtpUser || null,
+      password: maskSecret(raw.smtpPass),
+      from: raw.smtpFrom || null,
+      configured: Boolean(raw.smtpHost && raw.smtpFrom)
+    },
+    lendingReminders: {
+      enabled: raw.loanReminderEnabled ?? true,
+      timing: raw.loanReminderTiming || "AFTER_DUE",
+      days: raw.loanReminderDays ?? 0,
+      repeatDays: raw.loanReminderRepeatDays ?? 1,
+      subject: raw.loanReminderSubject || "Reminder: {{title}} is due {{dueDate}}",
+      message: raw.loanReminderMessage || "Hello {{borrowerName}},\n\nThis is a reminder that {{title}} ({{assetTag}}) from {{collectionName}} is due {{dueDate}}.\n\nPlease arrange to return it.\n\nThank you."
+    },
     apiKeys: {
       igdbClientId: maskSecret(raw.igdbClientId),
       igdbClientSecret: maskSecret(raw.igdbClientSecret),
@@ -115,6 +132,24 @@ const apiKeySchema = z.object({
   steamWebApiKey: z.string().nullable().optional(),
   customMetadataApiUrl: z.string().url().nullable().optional().or(z.literal("")),
   customMetadataApiKey: z.string().nullable().optional()
+});
+
+const smtpSchema = z.object({
+  host: z.string().max(255).nullable().optional(),
+  port: z.number().int().min(1).max(65535).optional(),
+  secure: z.boolean().optional(),
+  user: z.string().max(255).nullable().optional(),
+  password: z.string().max(1024).nullable().optional(),
+  from: z.string().max(255).nullable().optional()
+});
+
+const lendingReminderSchema = z.object({
+  enabled: z.boolean().optional(),
+  timing: z.enum(["BEFORE_DUE", "ON_DUE", "AFTER_DUE"]).optional(),
+  days: z.number().int().min(0).max(365).optional(),
+  repeatDays: z.number().int().min(0).max(365).optional(),
+  subject: z.string().min(1).max(255).optional(),
+  message: z.string().min(1).max(5000).optional()
 });
 
 const brandingSchema = z.object({
@@ -144,7 +179,9 @@ router.patch("/settings", async (req, res, next) => {
     const body = z.object({
       allowPublicSignup: z.boolean().optional(),
       branding: brandingSchema.optional(),
-      apiKeys: apiKeySchema.optional()
+      apiKeys: apiKeySchema.optional(),
+      smtp: smtpSchema.optional(),
+      lendingReminders: lendingReminderSchema.optional()
     }).parse(req.body);
 
     const updateData: Record<string, unknown> = {};
@@ -179,6 +216,24 @@ router.patch("/settings", async (req, res, next) => {
           value as string | null | undefined
         );
       }
+    }
+
+    if (body.smtp) {
+      if (typeof body.smtp.host !== "undefined") updateData.smtpHost = normalizeText(body.smtp.host);
+      if (typeof body.smtp.port !== "undefined") updateData.smtpPort = body.smtp.port;
+      if (typeof body.smtp.secure !== "undefined") updateData.smtpSecure = body.smtp.secure;
+      if (typeof body.smtp.user !== "undefined") updateData.smtpUser = normalizeText(body.smtp.user);
+      if (typeof body.smtp.password !== "undefined") updateData.smtpPass = normalizeText(body.smtp.password);
+      if (typeof body.smtp.from !== "undefined") updateData.smtpFrom = normalizeText(body.smtp.from);
+    }
+
+    if (body.lendingReminders) {
+      if (typeof body.lendingReminders.enabled !== "undefined") updateData.loanReminderEnabled = body.lendingReminders.enabled;
+      if (typeof body.lendingReminders.timing !== "undefined") updateData.loanReminderTiming = body.lendingReminders.timing;
+      if (typeof body.lendingReminders.days !== "undefined") updateData.loanReminderDays = body.lendingReminders.days;
+      if (typeof body.lendingReminders.repeatDays !== "undefined") updateData.loanReminderRepeatDays = body.lendingReminders.repeatDays;
+      if (typeof body.lendingReminders.subject !== "undefined") updateData.loanReminderSubject = body.lendingReminders.subject.trim();
+      if (typeof body.lendingReminders.message !== "undefined") updateData.loanReminderMessage = body.lendingReminders.message;
     }
 
     const settings = await prisma.appSetting.upsert({

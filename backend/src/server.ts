@@ -25,6 +25,8 @@ import reportsRoutes from "./routes/reports.js";
 import dashboardDataRoutes from "./routes/dashboardData.js";
 import listRoutes from "./routes/lists.js";
 import duplicateRoutes from "./routes/duplicates.js";
+import lendingRoutes from "./routes/lending.js";
+import { startLoanReminderScheduler } from "./mailer.js";
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -73,6 +75,7 @@ app.use("/reports", reportsRoutes);
 app.use("/dashboard-data", dashboardDataRoutes);
 app.use("/lists", listRoutes);
 app.use("/duplicates", duplicateRoutes);
+app.use("/lending", lendingRoutes);
 app.use("/", copyRoutes);
 app.use("/", itemRoutes);
 
@@ -81,4 +84,5 @@ app.use(errorHandler);
 
 app.listen(port, "0.0.0.0", () => {
   console.log(`VGC Shelf backend listening on port ${port}`);
+  startLoanReminderScheduler();
 });

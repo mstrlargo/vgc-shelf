@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { CollectionRole, CollectionType, LoanStatus } from "@prisma/client";
+import { AssetLabelStatus, CollectionRole, CollectionType, LoanStatus } from "@prisma/client";
 import { prisma } from "../db.js";
 import { requireAuth, requireCollectionRole } from "../auth.js";
 
@@ -446,6 +446,77 @@ router.post("/:id/checkin", async (req, res, next) => {
     });
 
     res.json({ loan });
+  } catch (err) {
+    next(err);
+  }
+});
+
+
+router.patch("/:id/label-status", async (req, res, next) => {
+  try {
+    const body = z.object({
+      status: z.nativeEnum(AssetLabelStatus)
+    }).parse(req.body);
+
+    const { asset, membership } = await getAssetAccess(req.params.id, req.user!.id, [
+      CollectionRole.OWNER,
+      CollectionRole.EDITOR
+    ]);
+
+    if (!asset) return res.status(404).json({ error: "Asset tag not found" });
+    if (!membership) return res.status(403).json({ error: "Editor or owner access required" });
+
+    const updated = await prisma.assetTag.update({
+      where: { id: asset.id },
+      data: { labelStatus: body.status },
+      include: assetInclude()
+    });
+
+    res.json({ asset: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/labels/printed", async (req, res, next) => {
+  try {
+    const body = z.object({
+      assetIds: z.array(z.string().min(1)).min(1).max(500)
+    }).parse(req.body);
+
+    const uniqueIds = [...new Set(body.assetIds)];
+    const assets = await prisma.assetTag.findMany({
+      where: { id: { in: uniqueIds } },
+      include: {
+        gameCopy: { select: { collectionId: true } },
+        collectionItem: { select: { collectionId: true } }
+      }
+    });
+
+    if (assets.length !== uniqueIds.length) {
+      return res.status(404).json({ error: "One or more asset tags were not found" });
+    }
+
+    for (const asset of assets) {
+      const collectionId = asset.gameCopy?.collectionId || asset.collectionItem?.collectionId;
+      if (!collectionId) return res.status(403).json({ error: "Asset is not assigned to a collection" });
+      const membership = await requireCollectionRole(collectionId, req.user!.id, [
+        CollectionRole.OWNER,
+        CollectionRole.EDITOR
+      ]);
+      if (!membership) return res.status(403).json({ error: "Editor or owner access required" });
+    }
+
+    const printedAt = new Date();
+    await prisma.assetTag.updateMany({
+      where: { id: { in: uniqueIds } },
+      data: {
+        labelStatus: AssetLabelStatus.NORMAL,
+        labelLastPrintedAt: printedAt
+      }
+    });
+
+    res.json({ updated: uniqueIds.length, printedAt });
   } catch (err) {
     next(err);
   }
