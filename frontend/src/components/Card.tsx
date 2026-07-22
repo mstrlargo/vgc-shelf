@@ -7,7 +7,7 @@ export function Card({ className = "", ...props }: Props) {
   return (
     <div
       className={clsx(
-        "vgc-surface rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 shadow-xl sm:p-5",
+        "vgc-card vgc-surface rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 shadow-xl sm:p-6 lg:p-7",
         className
       )}
       {...props}

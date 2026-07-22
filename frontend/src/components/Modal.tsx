@@ -14,11 +14,11 @@ export function Modal({
   maxWidth?: string;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-black/70 p-0 sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-black/70 p-0 sm:items-center sm:p-6" role="dialog" aria-modal="true">
       <div
-        className={`flex max-h-[94dvh] w-full ${maxWidth} flex-col rounded-t-2xl border border-zinc-800 bg-zinc-950 shadow-2xl sm:max-h-[92vh] sm:rounded-2xl`}
+        className={`flex max-h-[94dvh] w-full ${maxWidth} flex-col rounded-t-2xl border border-zinc-800 bg-zinc-950 shadow-2xl sm:max-h-[90vh] sm:rounded-2xl`}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-zinc-800 px-4 py-3 sm:px-5 sm:py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-zinc-800 px-5 py-4 sm:px-7 sm:py-5">
           <h2 className="min-w-0 pr-3 text-xl font-bold sm:text-2xl">{title}</h2>
 
           <button
@@ -31,7 +31,7 @@ export function Modal({
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-7">
           {children}
         </div>
       </div>

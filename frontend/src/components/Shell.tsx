@@ -177,11 +177,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="vgc-app min-h-screen">
       <header className="sticky top-0 z-40 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-3 py-3 sm:px-4 lg:px-6 lg:py-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 items-center gap-3">
+        <div className="mx-auto flex max-w-[1480px] flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8 lg:py-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+            <div className="flex min-w-0 items-center gap-4">
               {appIconUrl ? (
                 <img
                   src={appIconUrl}
@@ -206,7 +206,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <form
               ref={searchBoxRef}
               onSubmit={submitSearch}
-              className="relative flex w-full flex-col gap-2 sm:flex-row lg:max-w-md"
+              className="relative flex w-full flex-col gap-3 sm:flex-row lg:max-w-xl"
             >
               <div className="relative flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
@@ -310,7 +310,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </form>
           </div>
 
-          <nav className="-mx-3 flex items-center gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:flex-wrap sm:px-0 sm:pb-0">
+          <nav className="-mx-4 flex items-center gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0 sm:pb-0">
             <a
               href="/collections"
               className="inline-flex min-h-10 shrink-0 items-center rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
@@ -401,7 +401,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-5 lg:px-6 lg:py-6">
+      <main className="vgc-page mx-auto max-w-[1480px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
         {children}
       </main>
     </div>

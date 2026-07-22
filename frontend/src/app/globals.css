@@ -272,3 +272,144 @@ input[type="file"]::-webkit-file-upload-button {
 input[type="file"]::-webkit-file-upload-button:hover {
   opacity: 0.9;
 }
+
+/* VGC Shelf UI spacing system -------------------------------------------------
+   Shared tokens and restrained global rules keep every page readable as the
+   application grows, without changing feature-specific layouts. */
+:root {
+  --vgc-space-1: 0.375rem;
+  --vgc-space-2: 0.75rem;
+  --vgc-space-3: 1rem;
+  --vgc-space-4: 1.5rem;
+  --vgc-space-5: 2rem;
+  --vgc-space-6: 2.5rem;
+  --vgc-space-7: 3rem;
+  --vgc-control-height: 2.75rem;
+  --vgc-card-padding: 1.5rem;
+  --vgc-page-gap: 2rem;
+}
+
+.vgc-app {
+  --vgc-section-gap: var(--vgc-space-5);
+}
+
+.vgc-page > * + * {
+  margin-top: var(--vgc-page-gap);
+}
+
+/* Relax the most commonly used Tailwind spacing utilities inside application
+   content. Header/navigation spacing remains explicitly controlled in Shell. */
+.vgc-app main .gap-1,
+.vgc-app [role="dialog"] .gap-1 { gap: var(--vgc-space-1); }
+.vgc-app main .gap-2,
+.vgc-app [role="dialog"] .gap-2 { gap: var(--vgc-space-2); }
+.vgc-app main .gap-3,
+.vgc-app [role="dialog"] .gap-3 { gap: var(--vgc-space-3); }
+.vgc-app main .gap-4,
+.vgc-app [role="dialog"] .gap-4 { gap: var(--vgc-space-4); }
+.vgc-app main .gap-5,
+.vgc-app [role="dialog"] .gap-5 { gap: var(--vgc-space-5); }
+.vgc-app main .gap-6,
+.vgc-app [role="dialog"] .gap-6 { gap: var(--vgc-space-6); }
+
+.vgc-app main .space-y-1 > :not([hidden]) ~ :not([hidden]),
+.vgc-app [role="dialog"] .space-y-1 > :not([hidden]) ~ :not([hidden]) { margin-top: var(--vgc-space-1); }
+.vgc-app main .space-y-2 > :not([hidden]) ~ :not([hidden]),
+.vgc-app [role="dialog"] .space-y-2 > :not([hidden]) ~ :not([hidden]) { margin-top: var(--vgc-space-2); }
+.vgc-app main .space-y-3 > :not([hidden]) ~ :not([hidden]),
+.vgc-app [role="dialog"] .space-y-3 > :not([hidden]) ~ :not([hidden]) { margin-top: var(--vgc-space-3); }
+.vgc-app main .space-y-4 > :not([hidden]) ~ :not([hidden]),
+.vgc-app [role="dialog"] .space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: var(--vgc-space-4); }
+.vgc-app main .space-y-6 > :not([hidden]) ~ :not([hidden]),
+.vgc-app [role="dialog"] .space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: var(--vgc-space-6); }
+.vgc-app main .space-y-8 > :not([hidden]) ~ :not([hidden]),
+.vgc-app [role="dialog"] .space-y-8 > :not([hidden]) ~ :not([hidden]) { margin-top: 3.5rem; }
+
+/* Cards and panels */
+.vgc-card {
+  box-shadow: 0 18px 45px rgb(0 0 0 / 0.18);
+}
+
+.vgc-card > h1:first-child,
+.vgc-card > h2:first-child,
+.vgc-card > h3:first-child {
+  margin-bottom: var(--vgc-space-3);
+}
+
+/* Raw controls used by older pages now match the shared Input component. */
+.vgc-app main input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.vgc-app main select,
+.vgc-app main textarea,
+.vgc-app [role="dialog"] input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.vgc-app [role="dialog"] select,
+.vgc-app [role="dialog"] textarea {
+  min-height: var(--vgc-control-height);
+  padding-inline: 1rem;
+}
+
+.vgc-app main textarea,
+.vgc-app [role="dialog"] textarea {
+  min-height: 7rem;
+  padding-block: 0.75rem;
+  line-height: 1.5;
+}
+
+.vgc-app main label,
+.vgc-app [role="dialog"] label {
+  line-height: 1.4;
+}
+
+/* Tables stay information-dense, but no longer feel cramped. */
+.vgc-app main table th,
+.vgc-app main table td,
+.vgc-app [role="dialog"] table th,
+.vgc-app [role="dialog"] table td {
+  padding: 0.9rem 1rem;
+  vertical-align: middle;
+  line-height: 1.4;
+}
+
+.vgc-app main table thead th,
+.vgc-app [role="dialog"] table thead th {
+  padding-block: 1rem;
+}
+
+/* Give grouped actions room to wrap instead of compressing labels. */
+.vgc-app main .flex.flex-wrap,
+.vgc-app [role="dialog"] .flex.flex-wrap {
+  row-gap: var(--vgc-space-2);
+}
+
+/* Desktop cards and two-column layouts need more separation most of all. */
+@media (min-width: 1024px) {
+  :root {
+    --vgc-card-padding: 1.75rem;
+    --vgc-page-gap: 2.5rem;
+  }
+
+  .vgc-app main .lg\:grid-cols-2,
+  .vgc-app main .xl\:grid-cols-2,
+  .vgc-app main .xl\:grid-cols-3 {
+    column-gap: 2rem;
+    row-gap: 2rem;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --vgc-page-gap: 1.5rem;
+  }
+
+  .vgc-page > * + * {
+    margin-top: var(--vgc-page-gap);
+  }
+
+  .vgc-card {
+    padding: 1.25rem;
+  }
+
+  .vgc-app main table th,
+  .vgc-app main table td {
+    padding: 0.75rem;
+  }
+}
