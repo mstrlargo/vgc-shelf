@@ -146,11 +146,6 @@ button.vgc-primary,
   }
 }
 
-/* Light theme contrast fixes.
-   Tailwind classes that use slash opacity compile to escaped selectors, so they
-   need explicit light-mode overrides. Without these rules, dark translucent
-   surfaces stay gray/black while inherited text turns dark, making the UI hard
-   to read. */
 .vgc-light .bg-zinc-950\/95,
 .vgc-light .bg-zinc-950\/90,
 .vgc-light .bg-zinc-950\/80,
@@ -233,7 +228,6 @@ button.vgc-primary,
   background-color: rgb(255 255 255 / 0.95) !important;
 }
 
-/* Match native file upload controls to the app's primary button style. */
 input[type="file"] {
   cursor: pointer;
   padding: 0.45rem;
@@ -273,9 +267,6 @@ input[type="file"]::-webkit-file-upload-button:hover {
   opacity: 0.9;
 }
 
-/* VGC Shelf UI spacing system -------------------------------------------------
-   Shared tokens and restrained global rules keep every page readable as the
-   application grows, without changing feature-specific layouts. */
 :root {
   --vgc-space-1: 0.375rem;
   --vgc-space-2: 0.75rem;
@@ -297,8 +288,6 @@ input[type="file"]::-webkit-file-upload-button:hover {
   margin-top: var(--vgc-page-gap);
 }
 
-/* Relax the most commonly used Tailwind spacing utilities inside application
-   content. Header/navigation spacing remains explicitly controlled in Shell. */
 .vgc-app main .gap-1,
 .vgc-app [role="dialog"] .gap-1 { gap: var(--vgc-space-1); }
 .vgc-app main .gap-2,
@@ -325,7 +314,6 @@ input[type="file"]::-webkit-file-upload-button:hover {
 .vgc-app main .space-y-8 > :not([hidden]) ~ :not([hidden]),
 .vgc-app [role="dialog"] .space-y-8 > :not([hidden]) ~ :not([hidden]) { margin-top: 3.5rem; }
 
-/* Cards and panels */
 .vgc-card {
   box-shadow: 0 18px 45px rgb(0 0 0 / 0.18);
 }
@@ -336,7 +324,6 @@ input[type="file"]::-webkit-file-upload-button:hover {
   margin-bottom: var(--vgc-space-3);
 }
 
-/* Raw controls used by older pages now match the shared Input component. */
 .vgc-app main input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
 .vgc-app main select,
 .vgc-app main textarea,
@@ -359,7 +346,6 @@ input[type="file"]::-webkit-file-upload-button:hover {
   line-height: 1.4;
 }
 
-/* Tables stay information-dense, but no longer feel cramped. */
 .vgc-app main table th,
 .vgc-app main table td,
 .vgc-app [role="dialog"] table th,
@@ -374,13 +360,11 @@ input[type="file"]::-webkit-file-upload-button:hover {
   padding-block: 1rem;
 }
 
-/* Give grouped actions room to wrap instead of compressing labels. */
 .vgc-app main .flex.flex-wrap,
 .vgc-app [role="dialog"] .flex.flex-wrap {
   row-gap: var(--vgc-space-2);
 }
 
-/* Desktop cards and two-column layouts need more separation most of all. */
 @media (min-width: 1024px) {
   :root {
     --vgc-card-padding: 1.75rem;

@@ -1441,7 +1441,7 @@ export default function CollectionManagementPage({ params }: { params: { id: str
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="font-semibold text-blue-100">PriceCharting product match</div>
-                  <p className="mt-1 text-xs text-zinc-400">Match the exact PriceCharting product then use Autofill to update the price.</p><p className="mt-2 text-xs text-amber-200">Note: PriceCharting API access to CIB, New/Sealed, Box Only, Manual Only, and other non-loose values may require PriceCharting Legendary tier. Lower tiers may only return loose pricing even when the public PriceCharting page shows additional values.</p>
+                  <p className="mt-1 text-xs text-zinc-400">Match the exact PriceCharting product then use Autofill to update the price.</p>
                 </div>
                 <Button type="button" onClick={searchPriceChartingProducts} disabled={isPriceChartingSearching}>{isPriceChartingSearching ? "Searching..." : "Search PriceCharting"}</Button>
               </div>
