@@ -13,7 +13,6 @@ export function normalizeBarcode(value: string | null | undefined) {
   const digits = (value || "").replace(/\D/g, "");
   if (!digits) return "";
 
-  // UPC-A often appears as EAN-13 with a leading zero. Compare both as UPC-A.
   if (digits.length === 13 && digits.startsWith("0")) return digits.slice(1);
 
   return digits;

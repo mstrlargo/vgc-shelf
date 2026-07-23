@@ -37,7 +37,6 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      # Use Node instead of wget so the check works reliably in the Node Alpine image.
       test:
         [
           "CMD-SHELL",
@@ -64,8 +63,6 @@ services:
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
-      # Do not block the frontend forever if Docker health reporting is delayed.
-      # The frontend proxies API requests to the backend once it is ready.
       backend:
         condition: service_started
 

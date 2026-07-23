@@ -39,7 +39,6 @@ ENV BACKEND_INTERNAL_URL=http://127.0.0.1:4000
 ENV UPLOAD_DIR=/app/uploads
 ENV PUBLIC_UPLOAD_BASE_URL=/uploads
 
-# Backend runtime
 WORKDIR /app/backend
 COPY backend/package*.json ./
 RUN npm install --omit=dev
@@ -47,13 +46,11 @@ COPY --from=backend-build /app/backend/dist ./dist
 COPY --from=backend-build /app/backend/prisma ./prisma
 COPY --from=backend-build /app/backend/node_modules/.prisma ./node_modules/.prisma
 
-# Frontend standalone runtime
 WORKDIR /app/frontend
 COPY --from=frontend-build /app/frontend/.next/standalone ./
 COPY --from=frontend-build /app/frontend/.next/static ./.next/static
 COPY --from=frontend-build /app/frontend/public ./public
 
-# Start script
 WORKDIR /app
 COPY scripts/start-unraid.sh /app/start-unraid.sh
 RUN chmod +x /app/start-unraid.sh

@@ -1,4 +1,3 @@
--- Add metadata, PriceCharting match data, and physical parts to non-game collection items.
 ALTER TABLE "CollectionItem" ADD COLUMN IF NOT EXISTS "releaseYear" INTEGER;
 ALTER TABLE "CollectionItem" ADD COLUMN IF NOT EXISTS "description" TEXT;
 ALTER TABLE "CollectionItem" ADD COLUMN IF NOT EXISTS "priceChartingProductId" TEXT;

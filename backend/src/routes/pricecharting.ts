@@ -135,10 +135,6 @@ router.get("/products", async (req, res, next) => {
       products = await searchProducts(token, search);
     }
 
-    // /api/products intentionally returns product identity only. PriceCharting's
-    // documented products endpoint returns the first 20 matching products, while
-    // full condition prices come from /api/product for one selected product.
-    // Do not fan out 20 detail requests here; PriceCharting documents a 1 call/sec limit.
     res.json({ products: products.slice(0, 20).filter((p) => p.id).map(productSummary) });
   } catch (err: any) {
     if (err?.status) return res.status(err.status).json({ error: err.message || "PriceCharting lookup failed" });
