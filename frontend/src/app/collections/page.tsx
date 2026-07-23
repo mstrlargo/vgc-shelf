@@ -1,6 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { API_URL, api, Collection, CollectionType, getToken, publicAssetUrl } from "@/lib/api";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
@@ -129,6 +148,35 @@ function QuickActionLink({ href, icon, label }: { href: string; icon: React.Reac
   );
 }
 
+function SortableCollectionCard({
+  id,
+  disabled,
+  children
+}: {
+  id: string;
+  disabled: boolean;
+  children: (dragHandleProps: {
+    attributes: ReturnType<typeof useSortable>["attributes"];
+    listeners: ReturnType<typeof useSortable>["listeners"];
+    isDragging: boolean;
+  }) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition: transition || undefined,
+    opacity: isDragging ? 0.28 : 1,
+    zIndex: isDragging ? 1 : undefined
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="min-w-0">
+      {children({ attributes, listeners, isDragging })}
+    </div>
+  );
+}
+
 export default function CollectionsPage() {
   const [collections, setCollections] = useState<SortableCollection[]>([]);
   const [name, setName] = useState("");
@@ -139,12 +187,13 @@ export default function CollectionsPage() {
   const [type, setType] = useState<CollectionType>("GAMES");
   const [sort, setSort] = useState<CollectionSort>("manual");
   const [showArchived, setShowArchived] = useState(false);
-  const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
   const [message, setMessage] = useState("");
-  const draggedIdRef = useRef<string | null>(null);
-  const pointerIdRef = useRef<number | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   async function load() {
     const data = await api<{ collections: SortableCollection[] }>("/collections");
@@ -247,90 +296,37 @@ export default function CollectionsPage() {
     }
   }
 
-  function previewCollectionMove(sourceId: string, targetId: string) {
-    if (sourceId === targetId || sort !== "manual") return;
+  function handleDragStart(event: DragStartEvent) {
+    setActiveDragId(String(event.active.id));
+  }
 
-    const active = collections.filter((collection) => !collection.isArchived);
-    const dragged = active.find((collection) => collection.id === sourceId);
-    const target = active.find((collection) => collection.id === targetId);
-    if (!dragged || !target || dragged.isPinned !== target.isPinned) return;
+  function handleDragCancel() {
+    setActiveDragId(null);
+  }
 
-    const section = active.filter((collection) => Boolean(collection.isPinned) === Boolean(dragged.isPinned));
-    const fromIndex = section.findIndex((collection) => collection.id === sourceId);
-    const toIndex = section.findIndex((collection) => collection.id === targetId);
-    if (fromIndex < 0 || toIndex < 0) return;
+  function handleDragEnd(event: DragEndEvent, section: SortableCollection[]) {
+    setActiveDragId(null);
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
 
-    const reorderedSection = [...section];
-    const [moved] = reorderedSection.splice(fromIndex, 1);
-    reorderedSection.splice(toIndex, 0, moved);
+    const oldIndex = section.findIndex((collection) => collection.id === active.id);
+    const newIndex = section.findIndex((collection) => collection.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
 
-    const replacement = new Map(reorderedSection.map((collection, index) => [collection.id, index]));
-    setCollections((current) =>
-      current.map((collection) =>
-        replacement.has(collection.id) ? { ...collection, sortOrder: replacement.get(collection.id)! } : collection
-      )
+    const reordered = arrayMove(section, oldIndex, newIndex);
+    const orderById = new Map(reordered.map((collection, index) => [collection.id, index]));
+    const next = collections.map((collection) =>
+      orderById.has(collection.id) ? { ...collection, sortOrder: orderById.get(collection.id)! } : collection
     );
-  }
 
-  function beginCollectionDrag(event: React.PointerEvent<HTMLButtonElement>, collectionId: string) {
-    if (event.button !== 0) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-    pointerIdRef.current = event.pointerId;
-    draggedIdRef.current = collectionId;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    setDraggedId(collectionId);
-    setDragOverId(null);
-  }
-
-  function moveCollectionDrag(event: React.PointerEvent<HTMLButtonElement>) {
-    const sourceId = draggedIdRef.current;
-    if (!sourceId || pointerIdRef.current !== event.pointerId) return;
-
-    event.preventDefault();
-    const target = document
-      .elementFromPoint(event.clientX, event.clientY)
-      ?.closest<HTMLElement>("[data-collection-card-id]");
-    const targetId = target?.dataset.collectionCardId;
-
-    if (!targetId || targetId === sourceId) {
-      setDragOverId(null);
-      return;
-    }
-
-    setDragOverId(targetId);
-    previewCollectionMove(sourceId, targetId);
-  }
-
-  function finishCollectionDrag(event?: React.PointerEvent<HTMLButtonElement>) {
-    const sourceId = draggedIdRef.current;
-    if (!sourceId) return;
-
-    if (event && event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-
-    const dragged = collections.find((collection) => collection.id === sourceId);
-    if (dragged) {
-      const reorderedSection = collections
-        .filter(
-          (collection) =>
-            !collection.isArchived && Boolean(collection.isPinned) === Boolean(dragged.isPinned)
-        )
-        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-      void saveOrder(reorderedSection);
-    }
-
-    draggedIdRef.current = null;
-    pointerIdRef.current = null;
-    setDraggedId(null);
-    setDragOverId(null);
+    setCollections(next);
+    void saveOrder(reordered);
   }
 
   useEffect(() => {
     load().catch((err) => setMessage(err.message));
   }, []);
+
 
   const visibleCollections = useMemo(() => {
     const timeFor = (collection: SortableCollection, field: "createdAt" | "updatedAt") => {
@@ -362,19 +358,18 @@ export default function CollectionsPage() {
   const pinnedCollections = visibleCollections.filter((collection) => !showArchived && collection.isPinned);
   const regularCollections = visibleCollections.filter((collection) => showArchived || !collection.isPinned);
 
-  function CollectionCard({ collection }: { collection: SortableCollection }) {
+  function renderCollectionCard(collection: SortableCollection, overlay = false) {
     const canEdit = collection.role === "OWNER" || collection.role === "EDITOR";
-    const draggable = canEdit && sort === "manual" && !showArchived;
+    const draggable = canEdit && sort === "manual" && !showArchived && !overlay;
 
-    return (
+    const renderCard = (dragHandleProps?: {
+      attributes: ReturnType<typeof useSortable>["attributes"];
+      listeners: ReturnType<typeof useSortable>["listeners"];
+      isDragging: boolean;
+    }) => (
       <article
-        data-collection-card-id={collection.id}
-        className={`vgc-surface rounded-xl border bg-zinc-950 p-4 transition-[transform,border-color,box-shadow,opacity] duration-150 hover:vgc-accent-border ${
-          draggedId === collection.id
-            ? "scale-[0.985] border-zinc-500 opacity-75 shadow-2xl"
-            : dragOverId === collection.id
-              ? "scale-[1.01] vgc-accent-border shadow-lg"
-              : "border-zinc-800"
+        className={`vgc-surface relative rounded-xl border border-zinc-800 bg-zinc-950 p-4 hover:vgc-accent-border ${
+          overlay ? "cursor-grabbing shadow-2xl ring-2 ring-zinc-600/70" : ""
         }`}
       >
         <div className="mb-3 flex items-center justify-between gap-2">
@@ -382,27 +377,21 @@ export default function CollectionsPage() {
             {draggable && (
               <button
                 type="button"
-                aria-label={`Drag ${collection.name} to reorder`}
-                title="Grab and move to reorder"
-                onPointerDown={(event) => beginCollectionDrag(event, collection.id)}
-                onPointerMove={moveCollectionDrag}
-                onPointerUp={finishCollectionDrag}
-                onPointerCancel={finishCollectionDrag}
+                aria-label={`Move ${collection.name}`}
+                title="Move"
+                {...dragHandleProps?.attributes}
+                {...dragHandleProps?.listeners}
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
                 }}
-                className={`-m-2 flex touch-none select-none items-center gap-1 rounded-lg p-2 transition-colors ${
-                  draggedId === collection.id
-                    ? "cursor-grabbing bg-zinc-800 text-zinc-100"
-                    : "cursor-grab text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200 active:cursor-grabbing"
-                }`}
+                className="-m-2 flex touch-none select-none items-center gap-1 rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-zinc-200 active:cursor-grabbing cursor-grab"
               >
                 <GripVertical className="h-5 w-5 shrink-0" aria-hidden="true" />
                 <span className="hidden sm:inline">Move</span>
               </button>
             )}
-            {savingOrder && sort === "manual" ? "Saving order..." : sort === "manual" ? "Grab Move and drag" : ""}
+            {savingOrder && sort === "manual" ? <span>Saving...</span> : null}
           </div>
 
           <div className="flex items-center gap-1">
@@ -482,6 +471,37 @@ export default function CollectionsPage() {
         )}
       </article>
     );
+
+    if (overlay) return renderCard();
+
+    return (
+      <SortableCollectionCard key={collection.id} id={collection.id} disabled={!draggable}>
+        {(dragHandleProps) => renderCard(dragHandleProps)}
+      </SortableCollectionCard>
+    );
+  }
+
+  function renderCollectionGrid(items: SortableCollection[]) {
+    const activeCollection = activeDragId ? items.find((collection) => collection.id === activeDragId) : undefined;
+
+    return (
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragCancel={handleDragCancel}
+        onDragEnd={(event) => handleDragEnd(event, items)}
+      >
+        <SortableContext items={items.map((collection) => collection.id)} strategy={rectSortingStrategy}>
+          <div className="grid gap-4 md:grid-cols-2">
+            {items.map((collection) => renderCollectionCard(collection))}
+          </div>
+        </SortableContext>
+        <DragOverlay adjustScale={false} dropAnimation={{ duration: 160, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }}>
+          {activeCollection ? renderCollectionCard(activeCollection, true) : null}
+        </DragOverlay>
+      </DndContext>
+    );
   }
 
   return (
@@ -557,17 +577,13 @@ export default function CollectionsPage() {
                 <Pin className="h-4 w-4 vgc-accent-text" />
                 <h3 className="font-semibold">Pinned</h3>
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                {pinnedCollections.map((collection) => <CollectionCard key={collection.id} collection={collection} />)}
-              </div>
+              {renderCollectionGrid(pinnedCollections)}
             </section>
           )}
 
           <section className="mt-6">
             {!showArchived && pinnedCollections.length > 0 && <h3 className="mb-3 font-semibold">Collections</h3>}
-            <div className="grid gap-4 md:grid-cols-2">
-              {regularCollections.map((collection) => <CollectionCard key={collection.id} collection={collection} />)}
-            </div>
+            {renderCollectionGrid(regularCollections)}
           </section>
 
           {visibleCollections.length === 0 && (
@@ -577,6 +593,7 @@ export default function CollectionsPage() {
           )}
         </Card>
       </div>
+
     </Shell>
   );
 }
