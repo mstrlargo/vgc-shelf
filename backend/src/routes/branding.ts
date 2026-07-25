@@ -38,7 +38,9 @@ async function getSettings() {
       appName: "VGC Shelf",
       pageTitle: "VGC Shelf",
       appIconUrl: null,
-      assetTagPrefix: "VGC"
+      assetTagPrefix: "VGC",
+      assetLabelWidth: 2.25,
+      assetLabelHeight: 1.0
     }
   });
 }
@@ -55,6 +57,8 @@ router.get("/", async (_req, res, next) => {
         pageTitle: raw.pageTitle || raw.appName || "VGC Shelf",
         appIconUrl: raw.appIconUrl || null,
         assetTagPrefix: raw.assetTagPrefix || "VGC",
+        assetLabelWidth: Number(raw.assetLabelWidth) || 2.25,
+        assetLabelHeight: Number(raw.assetLabelHeight) || 1.0,
         labelText
       },
       settings: {

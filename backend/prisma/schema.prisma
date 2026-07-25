@@ -86,6 +86,8 @@ model AppSetting {
   pageTitle            String   @default("VGC Shelf")
   appIconUrl           String?
   assetTagPrefix       String   @default("VGC")
+  assetLabelWidth      Float    @default(2.25)
+  assetLabelHeight     Float    @default(1.0)
   igdbClientId         String?
   igdbClientSecret     String?
   twitchAccessToken    String?

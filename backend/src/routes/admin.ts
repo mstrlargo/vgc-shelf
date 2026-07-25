@@ -65,7 +65,9 @@ async function getSettings() {
       appName: "VGC Shelf",
       pageTitle: "VGC Shelf",
       appIconUrl: "/vgcs-icon.png",
-      assetTagPrefix: "VGC"
+      assetTagPrefix: "VGC",
+      assetLabelWidth: 2.25,
+      assetLabelHeight: 1.0
     }
   });
 }
@@ -89,6 +91,8 @@ async function publicSettings(settings: Awaited<ReturnType<typeof getSettings>>)
       pageTitle: raw.pageTitle || raw.appName || "VGC Shelf",
       appIconUrl: raw.appIconUrl || null,
       assetTagPrefix: raw.assetTagPrefix || "VGC",
+      assetLabelWidth: Number(raw.assetLabelWidth) || 2.25,
+      assetLabelHeight: Number(raw.assetLabelHeight) || 1.0,
       labelText
     },
     smtp: {
@@ -159,7 +163,9 @@ const brandingSchema = z.object({
   assetTagPrefix: z.string()
     .regex(/^[a-zA-Z0-9]{3}$/, "Asset tag prefix must be exactly 3 letters or numbers")
     .optional(),
-  labelText: z.string().max(80).nullable().optional()
+  labelText: z.string().max(80).nullable().optional(),
+  assetLabelWidth: z.number().min(0.5).max(6).optional(),
+  assetLabelHeight: z.number().min(0.5).max(6).optional()
 });
 
 router.get("/settings", async (_req, res, next) => {
@@ -208,6 +214,14 @@ router.patch("/settings", async (req, res, next) => {
           body.branding.assetTagPrefix
         );
       }
+
+      if (typeof body.branding.assetLabelWidth !== "undefined") {
+        updateData.assetLabelWidth = body.branding.assetLabelWidth;
+      }
+
+      if (typeof body.branding.assetLabelHeight !== "undefined") {
+        updateData.assetLabelHeight = body.branding.assetLabelHeight;
+      }
     }
 
     if (body.apiKeys) {
@@ -246,6 +260,8 @@ router.patch("/settings", async (req, res, next) => {
         pageTitle: "VGC Shelf",
         appIconUrl: "/vgcs-icon.png",
         assetTagPrefix: "VGC",
+        assetLabelWidth: 2.25,
+        assetLabelHeight: 1.0,
         ...updateData
       } as any
     });
