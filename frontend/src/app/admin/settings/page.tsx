@@ -28,6 +28,8 @@ type AdminBranding = {
   appIconUrl?: string | null;
   assetTagPrefix?: string;
   labelText?: string | null;
+  assetLabelWidth?: number;
+  assetLabelHeight?: number;
 };
 
 type SmtpSettings = {
@@ -114,7 +116,9 @@ export default function AdminSettingsPage() {
     pageTitle: "VGC Shelf",
     appIconUrl: "",
     assetTagPrefix: "VGC",
-    labelText: ""
+    labelText: "",
+    assetLabelWidth: 2.25,
+    assetLabelHeight: 1.0
   });
   const [smtpDraft, setSmtpDraft] = useState({
     host: "",
@@ -153,7 +157,9 @@ export default function AdminSettingsPage() {
       pageTitle: settingsData.settings.branding.pageTitle || "VGC Shelf",
       appIconUrl: settingsData.settings.branding.appIconUrl || "",
       assetTagPrefix: settingsData.settings.branding.assetTagPrefix || "VGC",
-      labelText: settingsData.settings.branding.labelText || ""
+      labelText: settingsData.settings.branding.labelText || "",
+      assetLabelWidth: Number(settingsData.settings.branding.assetLabelWidth) || 2.25,
+      assetLabelHeight: Number(settingsData.settings.branding.assetLabelHeight) || 1.0
     });
     setSmtpDraft({
       host: settingsData.settings.smtp?.host || "",
@@ -209,7 +215,9 @@ export default function AdminSettingsPage() {
             pageTitle: brandingDraft.pageTitle,
             appIconUrl: brandingDraft.appIconUrl || null,
             assetTagPrefix,
-            labelText: brandingDraft.labelText || null
+            labelText: brandingDraft.labelText || null,
+            assetLabelWidth: Number(brandingDraft.assetLabelWidth) || 2.25,
+            assetLabelHeight: Number(brandingDraft.assetLabelHeight) || 1.0
           }
         })
       });
@@ -220,7 +228,9 @@ export default function AdminSettingsPage() {
         pageTitle: data.settings.branding.pageTitle || "VGC Shelf",
         appIconUrl: data.settings.branding.appIconUrl || "",
         assetTagPrefix: data.settings.branding.assetTagPrefix || "VGC",
-        labelText: data.settings.branding.labelText || ""
+        labelText: data.settings.branding.labelText || "",
+        assetLabelWidth: Number(data.settings.branding.assetLabelWidth) || 2.25,
+        assetLabelHeight: Number(data.settings.branding.assetLabelHeight) || 1.0
       });
 
       applyBranding({
@@ -228,7 +238,9 @@ export default function AdminSettingsPage() {
         pageTitle: data.settings.branding.pageTitle || data.settings.branding.appName || "VGC Shelf",
         appIconUrl: data.settings.branding.appIconUrl || "/vgcs-icon.png",
         assetTagPrefix: data.settings.branding.assetTagPrefix || "VGC",
-        labelText: data.settings.branding.labelText || ""
+        labelText: data.settings.branding.labelText || "",
+        assetLabelWidth: Number(data.settings.branding.assetLabelWidth) || 2.25,
+        assetLabelHeight: Number(data.settings.branding.assetLabelHeight) || 1.0
       });
 
       setMessage("Branding saved.");
@@ -566,6 +578,65 @@ export default function AdminSettingsPage() {
                   Exactly 3 letters or numbers. Example: {(brandingDraft.assetTagPrefix || "VGC").padEnd(3, "X")}-GAME-0001
                 </span>
               </label>
+
+              <div className="space-y-3">
+                <span className="block text-sm font-medium">Asset Label Size</span>
+                <select
+                  className="vgc-select"
+                  style={{ colorScheme: "light" }}
+                  value={`${brandingDraft.assetLabelWidth || 2.25}x${brandingDraft.assetLabelHeight || 1}`}
+                  onChange={(e) => {
+                    if (e.target.value === "custom") return;
+                    const [width, height] = e.target.value.split("x").map(Number);
+                    setBrandingDraft((prev) => ({
+                      ...prev,
+                      assetLabelWidth: width,
+                      assetLabelHeight: height
+                    }));
+                  }}
+                >
+                  <option value="2.25x1">2.25 × 1.00 inches</option>
+                  <option value="2.25x1.25">2.25 × 1.25 inches</option>
+                  <option value="2.25x1.5">2.25 × 1.50 inches</option>
+                  <option value="2x1">2.00 × 1.00 inches</option>
+                  <option value="3.5x1.125">3.50 × 1.125 inches</option>
+                  {!["2.25x1", "2.25x1.25", "2.25x1.5", "2x1", "3.5x1.125"].includes(
+                    `${brandingDraft.assetLabelWidth || 2.25}x${brandingDraft.assetLabelHeight || 1}`
+                  ) && <option value={`${brandingDraft.assetLabelWidth}x${brandingDraft.assetLabelHeight}`}>Custom</option>}
+                </select>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium">Width in inches</span>
+                    <Input
+                      type="number"
+                      min="0.5"
+                      max="6"
+                      step="0.01"
+                      value={brandingDraft.assetLabelWidth || 2.25}
+                      onChange={(e) => setBrandingDraft((prev) => ({
+                        ...prev,
+                        assetLabelWidth: Number(e.target.value)
+                      }))}
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium">Height in inches</span>
+                    <Input
+                      type="number"
+                      min="0.5"
+                      max="6"
+                      step="0.01"
+                      value={brandingDraft.assetLabelHeight || 1}
+                      onChange={(e) => setBrandingDraft((prev) => ({
+                        ...prev,
+                        assetLabelHeight: Number(e.target.value)
+                      }))}
+                    />
+                  </label>
+                </div>
+              </div>
 
               <Button type="submit">Save branding</Button>
             </form>

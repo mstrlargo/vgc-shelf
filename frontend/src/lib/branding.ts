@@ -5,6 +5,8 @@ export type Branding = {
   faviconUrl?: string | null;
   assetTagPrefix?: string | null;
   labelText?: string | null;
+  assetLabelWidth?: number | null;
+  assetLabelHeight?: number | null;
   allowPublicSignup?: boolean;
 };
 
@@ -34,7 +36,9 @@ export function applyBranding(branding: Branding) {
     appIconUrl: normalizeIconUrl(branding.appIconUrl),
     faviconUrl: normalizeIconUrl(branding.faviconUrl || branding.appIconUrl),
     assetTagPrefix: branding.assetTagPrefix || "VGC",
-    labelText: branding.labelText || ""
+    labelText: branding.labelText || "",
+    assetLabelWidth: Number(branding.assetLabelWidth) || 2.25,
+    assetLabelHeight: Number(branding.assetLabelHeight) || 1.0
   };
 
   document.title = normalizedBranding.pageTitle;
@@ -94,6 +98,8 @@ export async function loadBranding(): Promise<Branding> {
       faviconUrl: normalizeIconUrl(branding.faviconUrl || branding.appIconUrl),
       assetTagPrefix: branding.assetTagPrefix || "VGC",
       labelText: branding.labelText || "",
+      assetLabelWidth: Number(branding.assetLabelWidth) || 2.25,
+      assetLabelHeight: Number(branding.assetLabelHeight) || 1.0,
       allowPublicSignup: data.allowPublicSignup ?? data.settings?.allowPublicSignup
     };
   } catch {
@@ -103,7 +109,9 @@ export async function loadBranding(): Promise<Branding> {
       appIconUrl: DEFAULT_ICON_URL,
       faviconUrl: DEFAULT_ICON_URL,
       assetTagPrefix: "VGC",
-      labelText: ""
+      labelText: "",
+      assetLabelWidth: 2.25,
+      assetLabelHeight: 1.0
     };
   }
 }

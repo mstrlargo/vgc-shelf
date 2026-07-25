@@ -62,6 +62,12 @@ export function printAssetLabels({
   }
 
   const title = assetTags.length === 1 ? assetTags[0].tag : `${assetTags.length} asset labels`;
+  const labelWidth = Math.min(6, Math.max(0.5, Number(branding.assetLabelWidth) || 2.25));
+  const labelHeight = Math.min(6, Math.max(0.5, Number(branding.assetLabelHeight) || 1));
+  const padding = Math.max(0.05, Math.min(0.12, labelHeight * 0.08));
+  const gap = Math.max(0.05, Math.min(0.12, labelHeight * 0.08));
+  const qrSize = Math.max(0.35, Math.min(labelHeight - padding * 2, labelWidth * 0.42));
+  const scale = Math.max(0.8, Math.min(1.5, labelHeight));
 
   printWindow.document.open();
   printWindow.document.write(`
@@ -72,7 +78,7 @@ export function printAssetLabels({
   <title>${escapeHtml(title)}</title>
   <style>
     @page {
-      size: 2.25in 1in;
+      size: ${labelWidth}in ${labelHeight}in;
       margin: 0;
     }
 
@@ -87,12 +93,12 @@ export function printAssetLabels({
 
     .label {
       box-sizing: border-box;
-      width: 2.25in;
-      height: 1in;
-      padding: 0.08in;
+      width: ${labelWidth}in;
+      height: ${labelHeight}in;
+      padding: ${padding}in;
       display: flex;
       align-items: center;
-      gap: 0.08in;
+      gap: ${gap}in;
       overflow: hidden;
       border: 1px solid #ddd;
       break-after: page;
@@ -105,8 +111,8 @@ export function printAssetLabels({
     }
 
     .qr {
-      width: 0.78in;
-      height: 0.78in;
+      width: ${qrSize}in;
+      height: ${qrSize}in;
       flex: 0 0 auto;
     }
 
@@ -117,7 +123,7 @@ export function printAssetLabels({
     }
 
     .app {
-      font-size: 8px;
+      font-size: ${8 * scale}px;
       font-weight: 700;
       white-space: nowrap;
       overflow: hidden;
@@ -127,7 +133,7 @@ export function printAssetLabels({
     .tag {
       margin-top: 2px;
       font-family: "Courier New", monospace;
-      font-size: 10px;
+      font-size: ${10 * scale}px;
       font-weight: 700;
       white-space: nowrap;
       overflow: hidden;
@@ -136,7 +142,7 @@ export function printAssetLabels({
 
     .owner {
       margin-top: 2px;
-      font-size: 7px;
+      font-size: ${7 * scale}px;
       font-weight: 700;
       white-space: nowrap;
       overflow: hidden;
@@ -145,7 +151,7 @@ export function printAssetLabels({
 
     .email {
       margin-top: 1px;
-      font-size: 6.5px;
+      font-size: ${6.5 * scale}px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -211,8 +217,16 @@ export function SmallAssetLabel({
   user: User | null;
   branding: Branding;
 }) {
+  const labelWidth = Math.min(6, Math.max(0.5, Number(branding.assetLabelWidth) || 2.25));
+  const labelHeight = Math.min(6, Math.max(0.5, Number(branding.assetLabelHeight) || 1));
+  const previewWidth = 288;
+  const previewHeight = Math.max(90, previewWidth * (labelHeight / labelWidth));
+
   return (
-    <div className="print-label rounded border border-zinc-300 bg-white p-2 text-zinc-950">
+    <div
+      className="print-label rounded border border-zinc-300 bg-white p-2 text-zinc-950"
+      style={{ width: "100%", maxWidth: previewWidth, minHeight: previewHeight }}
+    >
       <div className="flex items-center gap-2">
         <img src={qrUrlForTag(assetTag.tag)} alt={`QR ${assetTag.tag}`} className="h-16 w-16" />
         <div className="min-w-0">
