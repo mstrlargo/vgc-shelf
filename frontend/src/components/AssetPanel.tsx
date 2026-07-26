@@ -6,7 +6,11 @@ import { Branding } from "@/lib/branding";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { Modal } from "@/components/Modal";
-import { SmallAssetLabel, printAssetLabel } from "@/components/SmallAssetLabel";
+import {
+  AssetLabelDetails,
+  SmallAssetLabel,
+  printAssetLabel
+} from "@/components/SmallAssetLabel";
 import { CheckCircle2, LogIn, LogOut, Printer, QrCode } from "lucide-react";
 
 type CollectionTypeForAsset = "GAMES" | "SYSTEMS" | "PERIPHERALS" | "TOYS_TO_LIFE" | string;
@@ -19,6 +23,7 @@ type AssetPanelProps = {
   canEdit: boolean;
   user: User | null;
   branding: Branding;
+  labelDetails?: AssetLabelDetails;
   onChanged: () => void | Promise<void>;
 };
 
@@ -58,6 +63,7 @@ export function AssetPanel({
   canEdit,
   user,
   branding,
+  labelDetails,
   onChanged
 }: AssetPanelProps) {
   const [showPrint, setShowPrint] = useState(false);
@@ -258,11 +264,11 @@ export function AssetPanel({
       {showPrint && (
         <Modal title={`Print ${assetTag.tag}`} onClose={() => setShowPrint(false)} maxWidth="max-w-md">
           <div className="flex flex-col items-center gap-4">
-            <SmallAssetLabel assetTag={assetTag} user={user} branding={branding} />
+            <SmallAssetLabel assetTag={assetTag} user={user} branding={branding} details={labelDetails} />
 
             <Button
               type="button"
-              onClick={() => printAssetLabel({ assetTag, user, branding })}
+              onClick={() => printAssetLabel({ assetTag, user, branding, details: labelDetails })}
             >
               Print Label
             </Button>

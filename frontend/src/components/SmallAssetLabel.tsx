@@ -3,11 +3,26 @@
 import { AssetTagLite, User } from "@/lib/api";
 import { Branding } from "@/lib/branding";
 
+export type AssetLabelDetails = {
+  itemTitle?: string | null;
+  collectionName?: string | null;
+  platform?: string | null;
+  collectionType?: string | null;
+  barcode?: string | null;
+};
+
+type LabelLineKind = "heading" | "tag" | "primary" | "secondary" | "code";
+
+type LabelLine = {
+  kind: LabelLineKind;
+  value: string;
+};
+
 export function qrUrlForTag(tag: string) {
   if (typeof window === "undefined") return "";
 
   const url = `${window.location.origin}/assets/${encodeURIComponent(tag)}`;
-  return `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(url)}`;
+  return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(url)}`;
 }
 
 function escapeHtml(value: string) {
@@ -23,21 +38,115 @@ function labelTextFor(branding: Branding) {
   return branding.labelText?.trim() || branding.appName?.trim() || "VGC Shelf";
 }
 
-function labelMarkup(assetTag: AssetTagLite, user: User | null, branding: Branding) {
-  const appName = escapeHtml(labelTextFor(branding));
-  const tag = escapeHtml(assetTag.tag);
-  const ownerName = escapeHtml(user?.name || user?.email || "Owner");
-  const ownerEmail = escapeHtml(user?.email || "");
-  const qrUrl = qrUrlForTag(assetTag.tag);
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
 
+function labelLayout(branding: Branding, rowCount: number) {
+  const width = clamp(Number(branding.assetLabelWidth) || 2.25, 0.5, 6);
+  const height = clamp(Number(branding.assetLabelHeight) || 1, 0.5, 6);
+  const padding = clamp(height * 0.055, 0.04, 0.1);
+  const gap = clamp(height * 0.06, 0.045, 0.1);
+  const qrSize = Math.max(0.35, height - padding * 2);
+  const rowScale = clamp(4 / Math.max(4, rowCount), 0.55, 1);
+  const scale = clamp((qrSize / 0.62) * rowScale, 0.65, 2.5);
+
+  return {
+    width,
+    height,
+    padding,
+    gap,
+    qrSize,
+    appFontSize: 9 * scale,
+    tagFontSize: 12 * scale,
+    primaryFontSize: 8.5 * scale,
+    secondaryFontSize: 7.5 * scale,
+    codeFontSize: 7.5 * scale,
+    rowGap: clamp((qrSize * 0.025) * rowScale, 0.005, 0.04)
+  };
+}
+
+function readableType(value?: string | null) {
+  if (!value) return "";
+
+  return value
+    .replaceAll("_", " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function inferredDetails(assetTag: AssetTagLite): AssetLabelDetails {
+  const asset = assetTag as any;
+  const gameCopy = asset.gameCopy;
+  const collectionItem = asset.collectionItem;
+  const collection = gameCopy?.collection || collectionItem?.collection;
+
+  return {
+    itemTitle: gameCopy?.game?.title || collectionItem?.name || "",
+    collectionName: collection?.name || "",
+    platform: gameCopy?.game?.platform?.name || collectionItem?.platform || "",
+    collectionType: readableType(collection?.type || collectionItem?.category),
+    barcode: gameCopy?.barcode || collectionItem?.barcode || ""
+  };
+}
+
+function labelContent(
+  assetTag: AssetTagLite,
+  user: User | null,
+  branding: Branding,
+  details?: AssetLabelDetails
+) {
+  const resolved = { ...inferredDetails(assetTag), ...details };
+  const lines: LabelLine[] = [];
+
+  if (branding.assetLabelShowLabelText ?? true) {
+    lines.push({ kind: "heading", value: labelTextFor(branding) });
+  }
+
+  if (branding.assetLabelShowAssetTag ?? true) {
+    lines.push({ kind: "tag", value: assetTag.tag });
+  }
+
+  if ((branding.assetLabelShowItemTitle ?? false) && resolved.itemTitle) {
+    lines.push({ kind: "primary", value: resolved.itemTitle });
+  }
+
+  if ((branding.assetLabelShowCollectionName ?? false) && resolved.collectionName) {
+    lines.push({ kind: "secondary", value: resolved.collectionName });
+  }
+
+  if ((branding.assetLabelShowPlatform ?? false) && resolved.platform) {
+    lines.push({ kind: "secondary", value: resolved.platform });
+  }
+
+  if ((branding.assetLabelShowCollectionType ?? false) && resolved.collectionType) {
+    lines.push({ kind: "secondary", value: readableType(resolved.collectionType) });
+  }
+
+  if (branding.assetLabelShowOwnerName ?? true) {
+    lines.push({ kind: "primary", value: user?.name || user?.email || "Owner" });
+  }
+
+  if ((branding.assetLabelShowOwnerEmail ?? true) && user?.email) {
+    lines.push({ kind: "secondary", value: user.email });
+  }
+
+  if ((branding.assetLabelShowBarcode ?? false) && resolved.barcode) {
+    lines.push({ kind: "code", value: resolved.barcode });
+  }
+
+  return {
+    showQr: branding.assetLabelShowQr ?? true,
+    lines
+  };
+}
+
+function labelMarkup(assetTag: AssetTagLite, content: ReturnType<typeof labelContent>) {
   return `
     <div class="label">
-      <img class="qr" src="${qrUrl}" alt="QR code" />
+      ${content.showQr ? `<img class="qr" src="${qrUrlForTag(assetTag.tag)}" alt="QR code" />` : ""}
       <div class="text">
-        <div class="app">${appName}</div>
-        <div class="tag">${tag}</div>
-        <div class="owner">${ownerName}</div>
-        <div class="email">${ownerEmail}</div>
+        ${content.lines.map((line) => `<div class="line ${line.kind}">${escapeHtml(line.value)}</div>`).join("")}
       </div>
     </div>
   `;
@@ -46,11 +155,13 @@ function labelMarkup(assetTag: AssetTagLite, user: User | null, branding: Brandi
 export function printAssetLabels({
   assetTags,
   user,
-  branding
+  branding,
+  detailsByTag
 }: {
   assetTags: AssetTagLite[];
   user: User | null;
   branding: Branding;
+  detailsByTag?: Record<string, AssetLabelDetails>;
 }) {
   if (typeof window === "undefined" || assetTags.length === 0) return false;
 
@@ -62,12 +173,13 @@ export function printAssetLabels({
   }
 
   const title = assetTags.length === 1 ? assetTags[0].tag : `${assetTags.length} asset labels`;
-  const labelWidth = Math.min(6, Math.max(0.5, Number(branding.assetLabelWidth) || 2.25));
-  const labelHeight = Math.min(6, Math.max(0.5, Number(branding.assetLabelHeight) || 1));
-  const padding = Math.max(0.05, Math.min(0.12, labelHeight * 0.08));
-  const gap = Math.max(0.05, Math.min(0.12, labelHeight * 0.08));
-  const qrSize = Math.max(0.35, Math.min(labelHeight - padding * 2, labelWidth * 0.42));
-  const scale = Math.max(0.8, Math.min(1.5, labelHeight));
+  const contents = assetTags.map((assetTag) =>
+    labelContent(assetTag, user, branding, detailsByTag?.[assetTag.tag])
+  );
+  const layout = labelLayout(
+    branding,
+    Math.max(0, ...contents.map((content) => content.lines.length))
+  );
 
   printWindow.document.open();
   printWindow.document.write(`
@@ -78,7 +190,7 @@ export function printAssetLabels({
   <title>${escapeHtml(title)}</title>
   <style>
     @page {
-      size: ${labelWidth}in ${labelHeight}in;
+      size: ${layout.width}in ${layout.height}in;
       margin: 0;
     }
 
@@ -93,12 +205,12 @@ export function printAssetLabels({
 
     .label {
       box-sizing: border-box;
-      width: ${labelWidth}in;
-      height: ${labelHeight}in;
-      padding: ${padding}in;
+      width: ${layout.width}in;
+      height: ${layout.height}in;
+      padding: ${layout.padding}in;
       display: flex;
       align-items: center;
-      gap: ${gap}in;
+      gap: ${layout.gap}in;
       overflow: hidden;
       border: 1px solid #ddd;
       break-after: page;
@@ -111,50 +223,55 @@ export function printAssetLabels({
     }
 
     .qr {
-      width: ${qrSize}in;
-      height: ${qrSize}in;
+      width: ${layout.qrSize}in;
+      height: ${layout.qrSize}in;
       flex: 0 0 auto;
     }
 
     .text {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      justify-content: center;
       min-width: 0;
+      height: ${layout.qrSize}in;
       overflow: hidden;
       line-height: 1.1;
     }
 
-    .app {
-      font-size: ${8 * scale}px;
-      font-weight: 700;
+    .line {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .line + .line {
+      margin-top: ${layout.rowGap}in;
+    }
+
+    .heading {
+      font-size: ${layout.appFontSize}px;
+      font-weight: 700;
     }
 
     .tag {
-      margin-top: 2px;
       font-family: "Courier New", monospace;
-      font-size: ${10 * scale}px;
+      font-size: ${layout.tagFontSize}px;
       font-weight: 700;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
-    .owner {
-      margin-top: 2px;
-      font-size: ${7 * scale}px;
+    .primary {
+      font-size: ${layout.primaryFontSize}px;
       font-weight: 700;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
-    .email {
-      margin-top: 1px;
-      font-size: ${6.5 * scale}px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+    .secondary {
+      font-size: ${layout.secondaryFontSize}px;
+    }
+
+    .code {
+      font-family: "Courier New", monospace;
+      font-size: ${layout.codeFontSize}px;
     }
 
     @media screen {
@@ -180,7 +297,7 @@ export function printAssetLabels({
   </style>
 </head>
 <body>
-  ${assetTags.map((assetTag) => labelMarkup(assetTag, user, branding)).join("\n")}
+  ${assetTags.map((assetTag, index) => labelMarkup(assetTag, contents[index])).join("\n")}
   <script>
     window.addEventListener("load", function () {
       setTimeout(function () {
@@ -199,42 +316,96 @@ export function printAssetLabels({
 export function printAssetLabel({
   assetTag,
   user,
-  branding
+  branding,
+  details
 }: {
   assetTag: AssetTagLite;
   user: User | null;
   branding: Branding;
+  details?: AssetLabelDetails;
 }) {
-  return printAssetLabels({ assetTags: [assetTag], user, branding });
+  return printAssetLabels({
+    assetTags: [assetTag],
+    user,
+    branding,
+    detailsByTag: details ? { [assetTag.tag]: details } : undefined
+  });
 }
 
 export function SmallAssetLabel({
   assetTag,
   user,
-  branding
+  branding,
+  details
 }: {
   assetTag: AssetTagLite;
   user: User | null;
   branding: Branding;
+  details?: AssetLabelDetails;
 }) {
-  const labelWidth = Math.min(6, Math.max(0.5, Number(branding.assetLabelWidth) || 2.25));
-  const labelHeight = Math.min(6, Math.max(0.5, Number(branding.assetLabelHeight) || 1));
+  const content = labelContent(assetTag, user, branding, details);
+  const layout = labelLayout(branding, content.lines.length);
   const previewWidth = 288;
-  const previewHeight = Math.max(90, previewWidth * (labelHeight / labelWidth));
+  const previewScale = previewWidth / (layout.width * 96);
+  const previewHeight = previewWidth * (layout.height / layout.width);
 
   return (
     <div
-      className="print-label rounded border border-zinc-300 bg-white p-2 text-zinc-950"
-      style={{ width: "100%", maxWidth: previewWidth, minHeight: previewHeight }}
+      className="print-label flex items-center overflow-hidden rounded border border-zinc-300 bg-white text-zinc-950"
+      style={{
+        width: "100%",
+        maxWidth: previewWidth,
+        height: previewHeight,
+        padding: layout.padding * 96 * previewScale,
+        gap: layout.gap * 96 * previewScale
+      }}
     >
-      <div className="flex items-center gap-2">
-        <img src={qrUrlForTag(assetTag.tag)} alt={`QR ${assetTag.tag}`} className="h-16 w-16" />
-        <div className="min-w-0">
-          <div className="truncate text-[10px] font-bold leading-tight">{labelTextFor(branding)}</div>
-          <div className="truncate font-mono text-[12px] font-bold leading-tight">{assetTag.tag}</div>
-          <div className="truncate text-[9px] leading-tight">{user?.name || user?.email || "Owner"}</div>
-          <div className="truncate text-[8px] leading-tight">{user?.email || ""}</div>
-        </div>
+      {content.showQr && (
+        <img
+          src={qrUrlForTag(assetTag.tag)}
+          alt={`QR ${assetTag.tag}`}
+          className="shrink-0"
+          style={{
+            width: layout.qrSize * 96 * previewScale,
+            height: layout.qrSize * 96 * previewScale
+          }}
+        />
+      )}
+      <div
+        className="flex min-w-0 flex-1 flex-col justify-center overflow-hidden leading-[1.1]"
+        style={{ height: layout.qrSize * 96 * previewScale }}
+      >
+        {content.lines.map((line, index) => {
+          const fontSize =
+            line.kind === "heading"
+              ? layout.appFontSize
+              : line.kind === "tag"
+                ? layout.tagFontSize
+                : line.kind === "primary"
+                  ? layout.primaryFontSize
+                  : line.kind === "code"
+                    ? layout.codeFontSize
+                    : layout.secondaryFontSize;
+
+          return (
+            <div
+              key={`${line.kind}-${index}`}
+              className={`truncate ${
+                line.kind === "tag" || line.kind === "code" ? "font-mono" : ""
+              } ${
+                line.kind === "heading" || line.kind === "tag" || line.kind === "primary"
+                  ? "font-bold"
+                  : ""
+              }`}
+              style={{
+                marginTop: index === 0 ? 0 : layout.rowGap * 96 * previewScale,
+                fontSize: fontSize * previewScale
+              }}
+            >
+              {line.value}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

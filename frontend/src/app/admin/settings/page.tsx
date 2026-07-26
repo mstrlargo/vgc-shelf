@@ -30,7 +30,29 @@ type AdminBranding = {
   labelText?: string | null;
   assetLabelWidth?: number;
   assetLabelHeight?: number;
+  assetLabelShowQr?: boolean;
+  assetLabelShowLabelText?: boolean;
+  assetLabelShowAssetTag?: boolean;
+  assetLabelShowItemTitle?: boolean;
+  assetLabelShowCollectionName?: boolean;
+  assetLabelShowPlatform?: boolean;
+  assetLabelShowCollectionType?: boolean;
+  assetLabelShowOwnerName?: boolean;
+  assetLabelShowOwnerEmail?: boolean;
+  assetLabelShowBarcode?: boolean;
 };
+
+type AssetLabelBooleanKey =
+  | "assetLabelShowQr"
+  | "assetLabelShowLabelText"
+  | "assetLabelShowAssetTag"
+  | "assetLabelShowItemTitle"
+  | "assetLabelShowCollectionName"
+  | "assetLabelShowPlatform"
+  | "assetLabelShowCollectionType"
+  | "assetLabelShowOwnerName"
+  | "assetLabelShowOwnerEmail"
+  | "assetLabelShowBarcode";
 
 type SmtpSettings = {
   host: string | null;
@@ -79,6 +101,34 @@ const apiKeyFields: Array<{ key: keyof ApiKeys; label: string; placeholder?: str
   { key: "customMetadataApiKey", label: "Custom Metadata API Key" }
 ];
 
+const assetLabelFields: Array<{ key: AssetLabelBooleanKey; label: string }> = [
+  { key: "assetLabelShowQr", label: "QR code" },
+  { key: "assetLabelShowLabelText", label: "Asset label text" },
+  { key: "assetLabelShowAssetTag", label: "Asset tag" },
+  { key: "assetLabelShowItemTitle", label: "Item title" },
+  { key: "assetLabelShowCollectionName", label: "Collection name" },
+  { key: "assetLabelShowPlatform", label: "Platform" },
+  { key: "assetLabelShowCollectionType", label: "Collection type" },
+  { key: "assetLabelShowOwnerName", label: "Owner name" },
+  { key: "assetLabelShowOwnerEmail", label: "Owner email" },
+  { key: "assetLabelShowBarcode", label: "Barcode" }
+];
+
+function assetLabelOptions(branding: Partial<AdminBranding>) {
+  return {
+    assetLabelShowQr: branding.assetLabelShowQr ?? true,
+    assetLabelShowLabelText: branding.assetLabelShowLabelText ?? true,
+    assetLabelShowAssetTag: branding.assetLabelShowAssetTag ?? true,
+    assetLabelShowItemTitle: branding.assetLabelShowItemTitle ?? false,
+    assetLabelShowCollectionName: branding.assetLabelShowCollectionName ?? false,
+    assetLabelShowPlatform: branding.assetLabelShowPlatform ?? false,
+    assetLabelShowCollectionType: branding.assetLabelShowCollectionType ?? false,
+    assetLabelShowOwnerName: branding.assetLabelShowOwnerName ?? true,
+    assetLabelShowOwnerEmail: branding.assetLabelShowOwnerEmail ?? true,
+    assetLabelShowBarcode: branding.assetLabelShowBarcode ?? false
+  };
+}
+
 function blankApiKeys(): Record<keyof ApiKeys, string> {
   return {
     igdbClientId: "",
@@ -118,7 +168,8 @@ export default function AdminSettingsPage() {
     assetTagPrefix: "VGC",
     labelText: "",
     assetLabelWidth: 2.25,
-    assetLabelHeight: 1.0
+    assetLabelHeight: 1.0,
+    ...assetLabelOptions({})
   });
   const [smtpDraft, setSmtpDraft] = useState({
     host: "",
@@ -159,7 +210,8 @@ export default function AdminSettingsPage() {
       assetTagPrefix: settingsData.settings.branding.assetTagPrefix || "VGC",
       labelText: settingsData.settings.branding.labelText || "",
       assetLabelWidth: Number(settingsData.settings.branding.assetLabelWidth) || 2.25,
-      assetLabelHeight: Number(settingsData.settings.branding.assetLabelHeight) || 1.0
+      assetLabelHeight: Number(settingsData.settings.branding.assetLabelHeight) || 1.0,
+      ...assetLabelOptions(settingsData.settings.branding)
     });
     setSmtpDraft({
       host: settingsData.settings.smtp?.host || "",
@@ -217,7 +269,8 @@ export default function AdminSettingsPage() {
             assetTagPrefix,
             labelText: brandingDraft.labelText || null,
             assetLabelWidth: Number(brandingDraft.assetLabelWidth) || 2.25,
-            assetLabelHeight: Number(brandingDraft.assetLabelHeight) || 1.0
+            assetLabelHeight: Number(brandingDraft.assetLabelHeight) || 1.0,
+            ...assetLabelOptions(brandingDraft)
           }
         })
       });
@@ -230,7 +283,8 @@ export default function AdminSettingsPage() {
         assetTagPrefix: data.settings.branding.assetTagPrefix || "VGC",
         labelText: data.settings.branding.labelText || "",
         assetLabelWidth: Number(data.settings.branding.assetLabelWidth) || 2.25,
-        assetLabelHeight: Number(data.settings.branding.assetLabelHeight) || 1.0
+        assetLabelHeight: Number(data.settings.branding.assetLabelHeight) || 1.0,
+        ...assetLabelOptions(data.settings.branding)
       });
 
       applyBranding({
@@ -240,7 +294,8 @@ export default function AdminSettingsPage() {
         assetTagPrefix: data.settings.branding.assetTagPrefix || "VGC",
         labelText: data.settings.branding.labelText || "",
         assetLabelWidth: Number(data.settings.branding.assetLabelWidth) || 2.25,
-        assetLabelHeight: Number(data.settings.branding.assetLabelHeight) || 1.0
+        assetLabelHeight: Number(data.settings.branding.assetLabelHeight) || 1.0,
+        ...assetLabelOptions(data.settings.branding)
       });
 
       setMessage("Branding saved.");
@@ -612,7 +667,7 @@ export default function AdminSettingsPage() {
                       type="number"
                       min="0.5"
                       max="6"
-                      step="0.01"
+                      step="0.001"
                       value={brandingDraft.assetLabelWidth || 2.25}
                       onChange={(e) => setBrandingDraft((prev) => ({
                         ...prev,
@@ -627,7 +682,7 @@ export default function AdminSettingsPage() {
                       type="number"
                       min="0.5"
                       max="6"
-                      step="0.01"
+                      step="0.001"
                       value={brandingDraft.assetLabelHeight || 1}
                       onChange={(e) => setBrandingDraft((prev) => ({
                         ...prev,
@@ -635,6 +690,31 @@ export default function AdminSettingsPage() {
                       }))}
                     />
                   </label>
+                </div>
+
+                <div>
+                  <span className="mb-2 block text-sm font-medium">Information shown</span>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {assetLabelFields.map((field) => (
+                      <label
+                        key={field.key}
+                        className="flex min-h-11 items-center gap-3 rounded-xl border border-zinc-700 px-3 py-2"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={brandingDraft[field.key] ?? assetLabelOptions({})[field.key]}
+                          onChange={(e) =>
+                            setBrandingDraft((prev) => ({
+                              ...prev,
+                              [field.key]: e.target.checked
+                            }))
+                          }
+                          className="h-4 w-4"
+                        />
+                        <span className="text-sm">{field.label}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
 

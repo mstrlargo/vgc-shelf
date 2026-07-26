@@ -1330,7 +1330,22 @@ export default function CollectionManagementPage({ params }: { params: { id: str
                       {copy.barcode && <p className="vgc-muted mt-1 text-xs text-zinc-400">Barcode: {copy.barcode}</p>}
                       <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 text-sm"><p>Price Paid: {copy.purchasePrice ? money(copy.purchasePrice) : "—"}</p><p>Current Value: {copy.estimatedValue ? money(copy.estimatedValue) : "—"}</p>{delta && <p className={delta.className}>Change: {delta.text}</p>}</div>
                       <div className="mt-3 flex flex-wrap gap-2">{copy.parts.map((part) => <span key={part.id} title={part.notes || ""} className="rounded-full bg-zinc-800 px-2 py-1 text-xs">{partLabel(part.type)}: {conditionLabel(part.condition)}</span>)}{copy.format === "PHYSICAL" && copy.parts.length === 0 && <span className="rounded-full bg-zinc-800 px-2 py-1 text-xs text-zinc-400">No parts tracked</span>}</div>
-                      <AssetPanel assetTag={copy.assetTag} gameCopyId={copy.id} collectionType="GAMES" canEdit={canEdit} user={user} branding={branding} onChanged={load} />
+                      <AssetPanel
+                        assetTag={copy.assetTag}
+                        gameCopyId={copy.id}
+                        collectionType="GAMES"
+                        canEdit={canEdit}
+                        user={user}
+                        branding={branding}
+                        labelDetails={{
+                          itemTitle: copy.game.title,
+                          collectionName: collection?.name,
+                          platform: copy.game.platform?.name,
+                          collectionType: "Games",
+                          barcode: copy.barcode
+                        }}
+                        onChanged={load}
+                      />
                       {canEdit && (
                         <div className="mt-3 space-y-2">
                           {sellListBySourceId[copy.id] ? (
@@ -1389,7 +1404,24 @@ export default function CollectionManagementPage({ params }: { params: { id: str
                       <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 text-sm"><p>Price Paid: {item.purchasePrice ? money(item.purchasePrice) : "—"}</p><p>Current Value: {item.estimatedValue ? money(item.estimatedValue) : "—"}</p>{delta && <p className={delta.className}>Change: {delta.text}</p>}</div>
                       <div className="mt-3 flex flex-wrap gap-2">{(item.parts || []).map((part) => <span key={part.id} title={part.notes || ""} className="rounded-full bg-zinc-800 px-2 py-1 text-xs">{partLabel(part.type)}: {conditionLabel(part.condition)}</span>)}{(!item.parts || item.parts.length === 0) && <span className="rounded-full bg-zinc-800 px-2 py-1 text-xs text-zinc-400">No parts tracked</span>}</div>
                       {item.notes && <p className="vgc-muted mt-2 text-sm text-zinc-400">{item.notes}</p>}
-                      {collection?.type && <AssetPanel assetTag={item.assetTag} collectionItemId={item.id} collectionType={collection.type} canEdit={canEdit} user={user} branding={branding} onChanged={load} />}
+                      {collection?.type && (
+                        <AssetPanel
+                          assetTag={item.assetTag}
+                          collectionItemId={item.id}
+                          collectionType={collection.type}
+                          canEdit={canEdit}
+                          user={user}
+                          branding={branding}
+                          labelDetails={{
+                            itemTitle: item.name,
+                            collectionName: collection.name,
+                            platform: item.platform,
+                            collectionType: collectionTypeLabel(collection.type),
+                            barcode: item.barcode
+                          }}
+                          onChanged={load}
+                        />
+                      )}
                       {canEdit && (
                         <div className="mt-3 space-y-2">
                           {sellListBySourceId[item.id] ? (

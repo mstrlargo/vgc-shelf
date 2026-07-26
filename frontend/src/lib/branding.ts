@@ -7,6 +7,16 @@ export type Branding = {
   labelText?: string | null;
   assetLabelWidth?: number | null;
   assetLabelHeight?: number | null;
+  assetLabelShowQr?: boolean;
+  assetLabelShowLabelText?: boolean;
+  assetLabelShowAssetTag?: boolean;
+  assetLabelShowItemTitle?: boolean;
+  assetLabelShowCollectionName?: boolean;
+  assetLabelShowPlatform?: boolean;
+  assetLabelShowCollectionType?: boolean;
+  assetLabelShowOwnerName?: boolean;
+  assetLabelShowOwnerEmail?: boolean;
+  assetLabelShowBarcode?: boolean;
   allowPublicSignup?: boolean;
 };
 
@@ -38,7 +48,17 @@ export function applyBranding(branding: Branding) {
     assetTagPrefix: branding.assetTagPrefix || "VGC",
     labelText: branding.labelText || "",
     assetLabelWidth: Number(branding.assetLabelWidth) || 2.25,
-    assetLabelHeight: Number(branding.assetLabelHeight) || 1.0
+    assetLabelHeight: Number(branding.assetLabelHeight) || 1.0,
+    assetLabelShowQr: branding.assetLabelShowQr ?? true,
+    assetLabelShowLabelText: branding.assetLabelShowLabelText ?? true,
+    assetLabelShowAssetTag: branding.assetLabelShowAssetTag ?? true,
+    assetLabelShowItemTitle: branding.assetLabelShowItemTitle ?? false,
+    assetLabelShowCollectionName: branding.assetLabelShowCollectionName ?? false,
+    assetLabelShowPlatform: branding.assetLabelShowPlatform ?? false,
+    assetLabelShowCollectionType: branding.assetLabelShowCollectionType ?? false,
+    assetLabelShowOwnerName: branding.assetLabelShowOwnerName ?? true,
+    assetLabelShowOwnerEmail: branding.assetLabelShowOwnerEmail ?? true,
+    assetLabelShowBarcode: branding.assetLabelShowBarcode ?? false
   };
 
   document.title = normalizedBranding.pageTitle;
@@ -100,6 +120,16 @@ export async function loadBranding(): Promise<Branding> {
       labelText: branding.labelText || "",
       assetLabelWidth: Number(branding.assetLabelWidth) || 2.25,
       assetLabelHeight: Number(branding.assetLabelHeight) || 1.0,
+      assetLabelShowQr: branding.assetLabelShowQr ?? true,
+      assetLabelShowLabelText: branding.assetLabelShowLabelText ?? true,
+      assetLabelShowAssetTag: branding.assetLabelShowAssetTag ?? true,
+      assetLabelShowItemTitle: branding.assetLabelShowItemTitle ?? false,
+      assetLabelShowCollectionName: branding.assetLabelShowCollectionName ?? false,
+      assetLabelShowPlatform: branding.assetLabelShowPlatform ?? false,
+      assetLabelShowCollectionType: branding.assetLabelShowCollectionType ?? false,
+      assetLabelShowOwnerName: branding.assetLabelShowOwnerName ?? true,
+      assetLabelShowOwnerEmail: branding.assetLabelShowOwnerEmail ?? true,
+      assetLabelShowBarcode: branding.assetLabelShowBarcode ?? false,
       allowPublicSignup: data.allowPublicSignup ?? data.settings?.allowPublicSignup
     };
   } catch {
@@ -111,7 +141,17 @@ export async function loadBranding(): Promise<Branding> {
       assetTagPrefix: "VGC",
       labelText: "",
       assetLabelWidth: 2.25,
-      assetLabelHeight: 1.0
+      assetLabelHeight: 1.0,
+      assetLabelShowQr: true,
+      assetLabelShowLabelText: true,
+      assetLabelShowAssetTag: true,
+      assetLabelShowItemTitle: false,
+      assetLabelShowCollectionName: false,
+      assetLabelShowPlatform: false,
+      assetLabelShowCollectionType: false,
+      assetLabelShowOwnerName: true,
+      assetLabelShowOwnerEmail: true,
+      assetLabelShowBarcode: false
     };
   }
 }
