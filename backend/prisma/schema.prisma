@@ -88,6 +88,16 @@ model AppSetting {
   assetTagPrefix       String   @default("VGC")
   assetLabelWidth      Float    @default(2.25)
   assetLabelHeight     Float    @default(1.0)
+  assetLabelShowQr             Boolean @default(true)
+  assetLabelShowLabelText      Boolean @default(true)
+  assetLabelShowAssetTag       Boolean @default(true)
+  assetLabelShowItemTitle      Boolean @default(false)
+  assetLabelShowCollectionName Boolean @default(false)
+  assetLabelShowPlatform       Boolean @default(false)
+  assetLabelShowCollectionType Boolean @default(false)
+  assetLabelShowOwnerName      Boolean @default(true)
+  assetLabelShowOwnerEmail     Boolean @default(true)
+  assetLabelShowBarcode        Boolean @default(false)
   igdbClientId         String?
   igdbClientSecret     String?
   twitchAccessToken    String?

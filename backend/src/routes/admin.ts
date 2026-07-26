@@ -67,7 +67,17 @@ async function getSettings() {
       appIconUrl: "/vgcs-icon.png",
       assetTagPrefix: "VGC",
       assetLabelWidth: 2.25,
-      assetLabelHeight: 1.0
+      assetLabelHeight: 1.0,
+      assetLabelShowQr: true,
+      assetLabelShowLabelText: true,
+      assetLabelShowAssetTag: true,
+      assetLabelShowItemTitle: false,
+      assetLabelShowCollectionName: false,
+      assetLabelShowPlatform: false,
+      assetLabelShowCollectionType: false,
+      assetLabelShowOwnerName: true,
+      assetLabelShowOwnerEmail: true,
+      assetLabelShowBarcode: false
     }
   });
 }
@@ -93,6 +103,16 @@ async function publicSettings(settings: Awaited<ReturnType<typeof getSettings>>)
       assetTagPrefix: raw.assetTagPrefix || "VGC",
       assetLabelWidth: Number(raw.assetLabelWidth) || 2.25,
       assetLabelHeight: Number(raw.assetLabelHeight) || 1.0,
+      assetLabelShowQr: raw.assetLabelShowQr ?? true,
+      assetLabelShowLabelText: raw.assetLabelShowLabelText ?? true,
+      assetLabelShowAssetTag: raw.assetLabelShowAssetTag ?? true,
+      assetLabelShowItemTitle: raw.assetLabelShowItemTitle ?? false,
+      assetLabelShowCollectionName: raw.assetLabelShowCollectionName ?? false,
+      assetLabelShowPlatform: raw.assetLabelShowPlatform ?? false,
+      assetLabelShowCollectionType: raw.assetLabelShowCollectionType ?? false,
+      assetLabelShowOwnerName: raw.assetLabelShowOwnerName ?? true,
+      assetLabelShowOwnerEmail: raw.assetLabelShowOwnerEmail ?? true,
+      assetLabelShowBarcode: raw.assetLabelShowBarcode ?? false,
       labelText
     },
     smtp: {
@@ -165,7 +185,17 @@ const brandingSchema = z.object({
     .optional(),
   labelText: z.string().max(80).nullable().optional(),
   assetLabelWidth: z.number().min(0.5).max(6).optional(),
-  assetLabelHeight: z.number().min(0.5).max(6).optional()
+  assetLabelHeight: z.number().min(0.5).max(6).optional(),
+  assetLabelShowQr: z.boolean().optional(),
+  assetLabelShowLabelText: z.boolean().optional(),
+  assetLabelShowAssetTag: z.boolean().optional(),
+  assetLabelShowItemTitle: z.boolean().optional(),
+  assetLabelShowCollectionName: z.boolean().optional(),
+  assetLabelShowPlatform: z.boolean().optional(),
+  assetLabelShowCollectionType: z.boolean().optional(),
+  assetLabelShowOwnerName: z.boolean().optional(),
+  assetLabelShowOwnerEmail: z.boolean().optional(),
+  assetLabelShowBarcode: z.boolean().optional()
 });
 
 router.get("/settings", async (_req, res, next) => {
@@ -222,6 +252,23 @@ router.patch("/settings", async (req, res, next) => {
       if (typeof body.branding.assetLabelHeight !== "undefined") {
         updateData.assetLabelHeight = body.branding.assetLabelHeight;
       }
+
+      for (const key of [
+        "assetLabelShowQr",
+        "assetLabelShowLabelText",
+        "assetLabelShowAssetTag",
+        "assetLabelShowItemTitle",
+        "assetLabelShowCollectionName",
+        "assetLabelShowPlatform",
+        "assetLabelShowCollectionType",
+        "assetLabelShowOwnerName",
+        "assetLabelShowOwnerEmail",
+        "assetLabelShowBarcode"
+      ] as const) {
+        if (typeof body.branding[key] !== "undefined") {
+          updateData[key] = body.branding[key];
+        }
+      }
     }
 
     if (body.apiKeys) {
@@ -262,6 +309,16 @@ router.patch("/settings", async (req, res, next) => {
         assetTagPrefix: "VGC",
         assetLabelWidth: 2.25,
         assetLabelHeight: 1.0,
+        assetLabelShowQr: true,
+        assetLabelShowLabelText: true,
+        assetLabelShowAssetTag: true,
+        assetLabelShowItemTitle: false,
+        assetLabelShowCollectionName: false,
+        assetLabelShowPlatform: false,
+        assetLabelShowCollectionType: false,
+        assetLabelShowOwnerName: true,
+        assetLabelShowOwnerEmail: true,
+        assetLabelShowBarcode: false,
         ...updateData
       } as any
     });
