@@ -1,0 +1,21 @@
+{
+  "name": "VGC Shelf",
+  "short_name": "VGC Shelf",
+  "description": "Video game collection tracking",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#ef4444",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

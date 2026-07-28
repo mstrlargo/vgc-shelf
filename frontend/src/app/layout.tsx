@@ -4,9 +4,14 @@ import "../styles/select.css";
 export const metadata = {
   title: "VGC Shelf",
   description: "Video game collection tracking",
+  manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/favicon.ico",
-    apple: "/apple-icon.png"
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" }
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }]
   }
 };
 
