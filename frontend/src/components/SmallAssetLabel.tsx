@@ -47,9 +47,15 @@ function labelLayout(branding: Branding, rowCount: number) {
   const height = clamp(Number(branding.assetLabelHeight) || 1, 0.5, 6);
   const padding = clamp(height * 0.055, 0.04, 0.1);
   const gap = clamp(height * 0.06, 0.045, 0.1);
-  const qrSize = Math.max(0.35, height - padding * 2);
-  const rowScale = clamp(4 / Math.max(4, rowCount), 0.55, 1);
-  const scale = clamp((qrSize / 0.62) * rowScale, 0.65, 2.5);
+  const innerWidth = Math.max(0.35, width - padding * 2);
+  const innerHeight = Math.max(0.35, height - padding * 2);
+  const qrWidthRatio = rowCount >= 4 ? 0.42 : 0.48;
+  const qrSize = contentQrSize(innerWidth, innerHeight, gap, qrWidthRatio, rowCount);
+  const textWidth = Math.max(0.35, innerWidth - (rowCount > 0 ? qrSize + gap : 0));
+  const rowScale = clamp(5 / Math.max(5, rowCount), 0.62, 1);
+  const heightScale = innerHeight / 0.89;
+  const widthScale = textWidth / 1.05;
+  const scale = clamp(Math.min(heightScale * rowScale, widthScale), 0.65, 2.5);
 
   return {
     width,
@@ -62,8 +68,22 @@ function labelLayout(branding: Branding, rowCount: number) {
     primaryFontSize: 8.5 * scale,
     secondaryFontSize: 7.5 * scale,
     codeFontSize: 7.5 * scale,
-    rowGap: clamp((qrSize * 0.025) * rowScale, 0.005, 0.04)
+    rowGap: clamp((innerHeight * 0.018) * rowScale, 0.005, 0.035)
   };
+}
+
+function contentQrSize(
+  innerWidth: number,
+  innerHeight: number,
+  gap: number,
+  widthRatio: number,
+  rowCount: number
+) {
+  if (rowCount === 0) {
+    return Math.max(0.35, Math.min(innerHeight, innerWidth));
+  }
+
+  return Math.max(0.35, Math.min(innerHeight, (innerWidth - gap) * widthRatio));
 }
 
 function readableType(value?: string | null) {
