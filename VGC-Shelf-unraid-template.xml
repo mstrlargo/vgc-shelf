@@ -2,26 +2,27 @@
 <Container version="2">
   <Name>VGC-shelf</Name>
   <Repository>ghcr.io/mstrlargo/vgc-shelf:latest</Repository>
-  <Registry/>
+  <Registry>https://github.com/mstrlargo/vgc-shelf/pkgs/container/vgc-shelf</Registry>
   <Network>bridge</Network>
   <MyIP/>
   <MyMAC/>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
-  <Support/>
-  <Project/>
-  <ReadMe/>
+  <Support>https://github.com/mstrlargo/vgc-shelf/issues</Support>
+  <Project>https://github.com/mstrlargo/vgc-shelf</Project>
+  <ReadMe>https://raw.githubusercontent.com/mstrlargo/vgc-shelf/main/README.md</ReadMe>
   <Overview>VGC Shelf (Video Game Collection Shelf) is a self-hosted, open-source video game collection manager designed by collectors, for collectors.&#13;
 &#13;
 Track physical and digital games, systems, peripherals, and collectibles from a central location that you control. No subscriptions, no vendor lock-in, and no dependence on a third-party service to access your collection.</Overview>
-  <Category/>
-  <WebUI>http://[IP]:[PORT]</WebUI>
-  <TemplateURL/>
-  <Icon>https://github.com/mstrlargo/vgc-shelf/blob/main/icon.png</Icon>
+  <Category>Tools:Utilities</Category>
+  <WebUI>http://[IP]:[PORT:3000]</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/mstrlargo/vgc-shelf/main/VGC-Shelf-unraid-template.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/mstrlargo/vgc-shelf/main/icon.png</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>
   <DateInstalled>1782430616</DateInstalled>
+  <License>GPL-3.0</License>
   <DonateText/>
   <DonateLink/>
   <Requires/>
