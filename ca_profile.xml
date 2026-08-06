@@ -2,5 +2,5 @@
 <CommunityApplications>
   <Profile>VGC Shelf is a self-hosted, open-source video game collection manager for collectors. This application is for tracking physical and digital games, systems, peripherals, toys-to-life collectibles, asset tags, lending/check-outs, wishlists, sell lists, values, reports, metadata lookup, and admin-managed branding. For support, feature requests, and bug reports, use the GitHub repository issues page.</Profile>
   <Icon>https://raw.githubusercontent.com/mstrlargo/vgc-shelf/main/icon.png</Icon>
-  <WebPage>https://github.com/mstrlargo/vgc-shelf</WebPage>
+  <WebPage>https://vgcshelf.com</WebPage>
 </CommunityApplications>
