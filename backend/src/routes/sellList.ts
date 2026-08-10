@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { CollectionRole } from "@prisma/client";
 import { prisma } from "../db.js";
 import { ensureTables, id, now, sortSellList, toNumberOrNull, toStringOrNull, SellListRow } from "./listHelpers.js";
 
@@ -14,7 +15,15 @@ export function registerSellListRoutes(router: Router) {
     notes: z.string().nullable().optional(),
     imageUrl: z.string().nullable().optional(),
     assetTag: z.string().nullable().optional(),
-    collectionName: z.string().nullable().optional()
+    collectionName: z.string().nullable().optional(),
+    soldPrice: z.union([z.number(), z.string()]).nullable().optional(),
+    soldAt: z.coerce.date().nullable().optional()
+  });
+
+  const completeSaleSchema = z.object({
+    soldPrice: z.union([z.number(), z.string()]).nullable().optional(),
+    soldAt: z.coerce.date().optional(),
+    notes: z.string().nullable().optional()
   });
 
   router.get("/sell-list", async (req, res, next) => {
@@ -225,6 +234,14 @@ export function registerSellListRoutes(router: Router) {
 
       if (!existing[0]) return res.status(404).json({ error: "Sell list item not found" });
 
+      if (body.status === "SOLD" && existing[0].status !== "SOLD") {
+        return res.status(400).json({ error: "Complete the sale to move this item into sold history" });
+      }
+
+      if (existing[0].status === "SOLD" && body.status && body.status !== "SOLD") {
+        return res.status(400).json({ error: "Sold history entries cannot be returned to the active sell list" });
+      }
+
       const nextItem = {
         ...existing[0],
         ...body
@@ -243,8 +260,10 @@ export function registerSellListRoutes(router: Router) {
             "imageUrl" = $8,
             "assetTag" = $9,
             "collectionName" = $10,
-            "updatedAt" = $11
-        WHERE "id" = $12 AND "userId" = $13
+            "soldPrice" = $11,
+            "soldAt" = $12,
+            "updatedAt" = $13
+        WHERE "id" = $14 AND "userId" = $15
         `,
         String(nextItem.title).trim(),
         toStringOrNull(nextItem.platform),
@@ -256,6 +275,8 @@ export function registerSellListRoutes(router: Router) {
         toStringOrNull(nextItem.imageUrl),
         toStringOrNull(nextItem.assetTag),
         toStringOrNull(nextItem.collectionName),
+        toNumberOrNull(nextItem.soldPrice),
+        nextItem.soldAt || null,
         now(),
         req.params.id,
         req.user!.id
@@ -268,6 +289,138 @@ export function registerSellListRoutes(router: Router) {
       );
 
       res.json({ item: rows[0] });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post("/sell-list/:id/complete-sale", async (req, res, next) => {
+    try {
+      await ensureTables();
+
+      const body = completeSaleSchema.parse(req.body);
+      const existing = await prisma.$queryRawUnsafe<SellListRow[]>(
+        'SELECT * FROM "SellListItem" WHERE "id" = $1 AND "userId" = $2 LIMIT 1',
+        req.params.id,
+        req.user!.id
+      );
+      const item = existing[0];
+
+      if (!item) return res.status(404).json({ error: "Sell list item not found" });
+
+      let sourceExists = false;
+
+      if (item.sourceType === "GAME_COPY" && item.sourceId) {
+        const copy = await prisma.gameCopy.findUnique({
+          where: { id: item.sourceId },
+          select: {
+            collectionId: true,
+            assetTag: {
+              select: {
+                loans: {
+                  where: { status: "CHECKED_OUT" },
+                  select: { id: true },
+                  take: 1
+                }
+              }
+            }
+          }
+        });
+
+        if (copy) {
+          if (copy.assetTag?.loans.length) {
+            return res.status(409).json({ error: "Check this item in before completing its sale" });
+          }
+
+          sourceExists = true;
+          const membership = await prisma.collectionMember.findUnique({
+            where: { userId_collectionId: { userId: req.user!.id, collectionId: copy.collectionId } },
+            select: { role: true }
+          });
+
+          if (!membership || (membership.role !== CollectionRole.OWNER && membership.role !== CollectionRole.EDITOR)) {
+            return res.status(403).json({ error: "Editor or owner access is required to remove this item from its collection" });
+          }
+        }
+      }
+
+      if (item.sourceType === "COLLECTION_ITEM" && item.sourceId) {
+        const collectionItem = await prisma.collectionItem.findUnique({
+          where: { id: item.sourceId },
+          select: {
+            collectionId: true,
+            assetTag: {
+              select: {
+                loans: {
+                  where: { status: "CHECKED_OUT" },
+                  select: { id: true },
+                  take: 1
+                }
+              }
+            }
+          }
+        });
+
+        if (collectionItem) {
+          if (collectionItem.assetTag?.loans.length) {
+            return res.status(409).json({ error: "Check this item in before completing its sale" });
+          }
+
+          sourceExists = true;
+          const membership = await prisma.collectionMember.findUnique({
+            where: { userId_collectionId: { userId: req.user!.id, collectionId: collectionItem.collectionId } },
+            select: { role: true }
+          });
+
+          if (!membership || (membership.role !== CollectionRole.OWNER && membership.role !== CollectionRole.EDITOR)) {
+            return res.status(403).json({ error: "Editor or owner access is required to remove this item from its collection" });
+          }
+        }
+      }
+
+      const timestamp = now();
+      const soldAt = body.soldAt || timestamp;
+      const soldPrice = typeof body.soldPrice === "undefined" ? item.askingPrice : body.soldPrice;
+      const notes = typeof body.notes === "undefined" ? item.notes : toStringOrNull(body.notes);
+      const sourceRemovedAt = item.sourceType === "MANUAL" ? item.sourceRemovedAt : timestamp;
+
+      await prisma.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(
+          `
+          UPDATE "SellListItem"
+          SET "status" = 'SOLD',
+              "soldPrice" = $1,
+              "soldAt" = $2,
+              "sourceRemovedAt" = $3,
+              "notes" = $4,
+              "updatedAt" = $5
+          WHERE "id" = $6 AND "userId" = $7
+          `,
+          toNumberOrNull(soldPrice),
+          soldAt,
+          sourceRemovedAt,
+          notes,
+          timestamp,
+          req.params.id,
+          req.user!.id
+        );
+
+        if (sourceExists && item.sourceType === "GAME_COPY" && item.sourceId) {
+          await tx.gameCopy.delete({ where: { id: item.sourceId } });
+        }
+
+        if (sourceExists && item.sourceType === "COLLECTION_ITEM" && item.sourceId) {
+          await tx.collectionItem.delete({ where: { id: item.sourceId } });
+        }
+      });
+
+      const rows = await prisma.$queryRawUnsafe<SellListRow[]>(
+        'SELECT * FROM "SellListItem" WHERE "id" = $1 AND "userId" = $2 LIMIT 1',
+        req.params.id,
+        req.user!.id
+      );
+
+      res.json({ item: rows[0], removedFromCollection: sourceExists });
     } catch (err) {
       next(err);
     }

@@ -30,6 +30,9 @@ export type SellListRow = {
   imageUrl: string | null;
   assetTag: string | null;
   collectionName: string | null;
+  soldPrice: string | null;
+  soldAt: Date | null;
+  sourceRemovedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -92,10 +95,17 @@ export async function ensureTables() {
       "imageUrl" TEXT,
       "assetTag" TEXT,
       "collectionName" TEXT,
+      "soldPrice" DECIMAL(10,2),
+      "soldAt" TIMESTAMP(3),
+      "sourceRemovedAt" TIMESTAMP(3),
       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await prisma.$executeRawUnsafe('ALTER TABLE "SellListItem" ADD COLUMN IF NOT EXISTS "soldPrice" DECIMAL(10,2)');
+  await prisma.$executeRawUnsafe('ALTER TABLE "SellListItem" ADD COLUMN IF NOT EXISTS "soldAt" TIMESTAMP(3)');
+  await prisma.$executeRawUnsafe('ALTER TABLE "SellListItem" ADD COLUMN IF NOT EXISTS "sourceRemovedAt" TIMESTAMP(3)');
 }
 
 export function sortWishlist(rows: WishlistRow[], sort: string) {
@@ -125,8 +135,11 @@ export function sortSellList(rows: SellListRow[], sort: string) {
     if (sort === "current-value") return Number(a.currentValue || 0) - Number(b.currentValue || 0) || a.title.localeCompare(b.title);
     if (sort === "current-value-desc") return Number(b.currentValue || 0) - Number(a.currentValue || 0) || a.title.localeCompare(b.title);
     if (sort === "status") return a.status.localeCompare(b.status) || a.title.localeCompare(b.title);
+    if (sort === "sold-date") return new Date(a.soldAt || 0).getTime() - new Date(b.soldAt || 0).getTime();
+    if (sort === "sold-date-desc") return new Date(b.soldAt || 0).getTime() - new Date(a.soldAt || 0).getTime();
+    if (sort === "sold-price") return Number(a.soldPrice || 0) - Number(b.soldPrice || 0) || a.title.localeCompare(b.title);
+    if (sort === "sold-price-desc") return Number(b.soldPrice || 0) - Number(a.soldPrice || 0) || a.title.localeCompare(b.title);
     if (sort === "name") return a.title.localeCompare(b.title);
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 }
-
